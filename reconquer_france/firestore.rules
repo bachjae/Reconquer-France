@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ──────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isGroupMember(groupId) {
+      return request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+    }
+
+    // ─── Users ────────────────────────────────────────────────────────────────
+
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if false; // Never delete user documents
+
+      // Trips subcollection
+      match /trips/{tripId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isOwner(uid);
+        allow delete: if isOwner(uid);
+
+        // Photos subcollection
+        match /photos/{photoId} {
+          allow read: if isAuthenticated();
+          allow write: if isOwner(uid);
+        }
+
+        // Cell chunks (for large datasets)
+        match /cell_chunks/{chunkId} {
+          allow read: if isAuthenticated();
+          allow write: if isOwner(uid);
+        }
+      }
+    }
+
+    // ─── Usernames (for uniqueness checking) ──────────────────────────────────
+
+    match /usernames/{username} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAuthenticated()
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // ─── Groups ───────────────────────────────────────────────────────────────
+
+    match /groups/{groupId} {
+      allow read: if isAuthenticated() && isGroupMember(groupId);
+      allow create: if isAuthenticated()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIds;
+      allow update: if isAuthenticated() && (
+        // Group members can add themselves
+        (isGroupMember(groupId) && request.resource.data.memberIds.hasAll(resource.data.memberIds))
+        // Creator can update
+        || resource.data.createdBy == request.auth.uid
+      );
+      allow delete: if resource.data.createdBy == request.auth.uid;
+
+      // Alerts subcollection
+      match /alerts/{alertId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId)
+          && request.resource.data.sentBy == request.auth.uid;
+        allow update: if isGroupMember(groupId)
+          && request.resource.data.keys().hasOnly(['resolvedAt', 'resolvedBy']);
+        allow delete: if false;
+      }
+    }
+
+    // ─── Friend Requests ──────────────────────────────────────────────────────
+
+    match /friendRequests/{requestId} {
+      allow read: if isAuthenticated()
+        && (resource.data.fromUid == request.auth.uid
+          || resource.data.toUsername == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username);
+      allow create: if isAuthenticated()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isAuthenticated()
+        && resource.data.toUsername == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        && request.resource.data.keys().hasOnly(['status'])
+        && request.resource.data.status in ['accepted', 'declined'];
+      allow delete: if resource.data.fromUid == request.auth.uid;
+    }
+  }
+}

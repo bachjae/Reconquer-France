@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French flag icon for notification small icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Simple flag outline for notification -->
+    <path
+        android:fillColor="#E8C547"
+        android:pathData="M3,3 L21,3 L21,21 L3,21 Z" />
+    <path
+        android:fillColor="#0A0A0F"
+        android:pathData="M5,5 L19,5 L19,19 L5,19 Z" />
+    <!-- Fleur-de-lis simplified -->
+    <path
+        android:fillColor="#E8C547"
+        android:pathData="M12,7 L13,10 L16,9 L14,11 L15,14 L12,12 L9,14 L10,11 L8,9 L11,10 Z" />
+</vector>

@@ -1,0 +1,45 @@
+# Flutter
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/pubspec.lock
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/ios/Flutter/flutter_export_environment.sh
+
+# Firebase generated files (do NOT commit your actual firebase_options.dart with real keys)
+reconquer_france/lib/firebase_options.dart
+
+# Sensitive config files
+**/google-services.json
+**/GoogleService-Info.plist
+**/android/local.properties
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Gradle
+**/android/.gradle/
+**/android/captures/
+
+# iOS
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+
+# Node.js (functions)
+**/functions/node_modules/
+**/functions/lib/
+
+# Test
+**/coverage/
