@@ -4,6 +4,7 @@ import 'package:flutter_background_geolocation/flutter_background_geolocation.da
 import 'package:geolocator/geolocator.dart';
 import 'hex_grid_service.dart';
 import 'sync_service.dart';
+import 'elevation_service.dart';
 import '../core/constants.dart';
 
 class LocationService {
@@ -51,10 +52,15 @@ class LocationService {
     bg.BackgroundGeolocation.onLocation((bg.Location location) {
       final lat = location.coords.latitude;
       final lng = location.coords.longitude;
+      final altitude = location.coords.altitude;
+      final altAccuracy = location.coords.altitudeAccuracy ?? 0.0;
       final pos = LatLng(lat, lng);
 
       _lastPosition = pos;
       _positionController.add(pos);
+
+      // Record elevation data
+      ElevationService.recordAltitude(altitude, altitudeAccuracy: altAccuracy);
 
       // Only process cells within France
       if (HexGridService.isInFrance(lat, lng)) {

@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'firebase_options.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
+import 'services/offline_tile_service.dart';
 import 'app.dart';
 
 // Your Mapbox public token — replace with your actual token
@@ -41,8 +42,11 @@ void main() async {
   // Initialize Mapbox
   MapboxOptions.setAccessToken(_mapboxAccessToken);
 
-  // Initialize Hive + SyncService
+  // Initialize Hive + SyncService (also inits StreakService + ElevationService)
   await SyncService.init();
+
+  // Initialize offline tile service
+  await OfflineTileService.init();
 
   // Initialize notifications
   await NotificationService.initialize();

@@ -4,11 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../core/constants.dart';
+import 'streak_service.dart';
+import 'elevation_service.dart';
 
 class SyncService {
   static late Box<String> _cellsBox;
   static late Box _syncQueue;
   static late Box _photosBox;
+  static late Box<String> _timestampsBox; // hexId → ISO8601 unlock time
   static Timer? _debounceTimer;
   static StreamSubscription? _connectivitySub;
 
@@ -17,6 +20,9 @@ class SyncService {
     _cellsBox = await Hive.openBox<String>('unlocked_cells');
     _syncQueue = await Hive.openBox('sync_queue');
     _photosBox = await Hive.openBox('trip_photos');
+    _timestampsBox = await Hive.openBox<String>('unlock_timestamps');
+    await StreakService.init();
+    await ElevationService.init();
 
     // Listen for connectivity changes and flush queue
     _connectivitySub =
@@ -40,6 +46,13 @@ class SyncService {
 
     // Save locally first
     await _cellsBox.put(hexId, hexId);
+
+    // Record unlock timestamp
+    final ts = DateTime.now().toIso8601String();
+    await _timestampsBox.put(hexId, ts);
+
+    // Record streak activity
+    await StreakService.recordActivity();
 
     // Queue for remote sync
     final queueEntry = {
@@ -125,6 +138,20 @@ class SyncService {
     } catch (e) {
       // Keep in queue for retry
     }
+  }
+
+  /// Returns map of hexId → unlock DateTime, sorted by time ascending.
+  static Map<String, DateTime> getUnlockTimestamps() {
+    final result = <String, DateTime>{};
+    for (final key in _timestampsBox.keys) {
+      final val = _timestampsBox.get(key);
+      if (val != null) {
+        try {
+          result[key as String] = DateTime.parse(val);
+        } catch (_) {}
+      }
+    }
+    return result;
   }
 
   static Set<String> getLocalUnlockedCells() {

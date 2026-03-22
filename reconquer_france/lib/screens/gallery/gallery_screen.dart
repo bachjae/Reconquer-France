@@ -6,6 +6,7 @@ import '../../core/constants.dart';
 import '../../providers/photo_provider.dart';
 import '../../providers/map_provider.dart';
 import '../../services/hex_grid_service.dart';
+import 'hex_stories_screen.dart';
 
 class GalleryScreen extends ConsumerStatefulWidget {
   const GalleryScreen({super.key});
@@ -44,6 +45,17 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             actions: [
+              // Stories button
+              IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const HexStoriesScreen()),
+                ),
+                icon: const Icon(Icons.auto_stories_outlined,
+                    color: Color(kColorAccent)),
+                tooltip: 'Stories',
+              ),
               // Toggle view
               IconButton(
                 onPressed: () =>
@@ -203,10 +215,44 @@ class _GridPhoto extends StatelessWidget {
   }
 
   void _showFullscreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => _FullscreenPhoto(photo: photo),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.fullscreen, color: Color(kColorAccent)),
+              title: const Text('View Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => _FullscreenPhoto(photo: photo)),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.auto_stories_outlined,
+                  color: Color(kColorAccent)),
+              title: const Text('View Hex Stories'),
+              onTap: () {
+                Navigator.pop(context);
+                final hexId = photo['hexId'] as String?;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          HexStoriesScreen(startHexId: hexId)),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

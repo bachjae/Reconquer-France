@@ -12,7 +12,10 @@ import '../../services/location_service.dart';
 import '../../services/hex_grid_service.dart';
 import '../../widgets/emergency_fab.dart';
 import '../../widgets/progress_badge.dart';
+import '../../widgets/streak_badge.dart';
 import 'hex_detail_sheet.dart';
+import 'trip_replay_screen.dart';
+import 'collaborative_map_screen.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -28,11 +31,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   StreamSubscription<String>? _cellUnlockSub;
   Timer? _viewportDebounce;
 
+  // Heatmap toggle
+  bool _heatmapEnabled = false;
+
   // GeoJSON source IDs
   static const _lockedLayerId = 'locked-hexes';
   static const _unlockedLayerId = 'unlocked-hexes';
   static const _unlockedSourceId = 'unlocked-hex-source';
   static const _lockedSourceId = 'locked-hex-source';
+  static const _heatmapLayerId = 'heatmap-layer';
+  static const _heatmapSourceId = 'heatmap-source';
 
   @override
   void initState() {
@@ -98,6 +106,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       fillColor: kColorUnlockedHex,
       fillOpacity: 0.8,
       fillOutlineColor: kColorAccent,
+    ));
+
+    // Heatmap source (point-based unlocked cell centers)
+    await _mapboxMap!.style.addSource(GeoJsonSource(
+      id: _heatmapSourceId,
+      data: '{"type":"FeatureCollection","features":[]}',
+    ));
+
+    // Heatmap layer (hidden by default)
+    await _mapboxMap!.style.addLayer(HeatmapLayer(
+      id: _heatmapLayerId,
+      sourceId: _heatmapSourceId,
+      heatmapRadius: 12.0,
+      heatmapOpacity: 0.0, // hidden until toggled
     ));
 
     // Initial viewport load
@@ -203,6 +225,64 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _updateHexLayer() async {
     await _updateViewportHexes();
+    if (_heatmapEnabled) await _updateHeatmap();
+  }
+
+  Future<void> _updateHeatmap() async {
+    if (_mapboxMap == null) return;
+    final unlockedCells = ref.read(unlockedCellsProvider);
+
+    // Use a sample of cells (max 2000) for heatmap performance
+    final sample = unlockedCells.take(2000);
+    final features = sample.map((hexId) {
+      final center = HexGridService.hexIdToCenter(hexId);
+      return {
+        'type': 'Feature',
+        'properties': {},
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [center.longitude, center.latitude],
+        },
+      };
+    }).toList();
+
+    final geoJson = jsonEncode({
+      'type': 'FeatureCollection',
+      'features': features,
+    });
+
+    try {
+      await _mapboxMap!.style
+          .setStyleSourceProperty(_heatmapSourceId, 'data', geoJson);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleHeatmap() async {
+    setState(() => _heatmapEnabled = !_heatmapEnabled);
+    if (_mapboxMap == null) return;
+
+    if (_heatmapEnabled) {
+      await _updateHeatmap();
+      // Show heatmap, hide hex polygons
+      try {
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_heatmapLayerId, 'heatmap-opacity', 0.75);
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_lockedLayerId, 'fill-opacity', 0.0);
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_unlockedLayerId, 'fill-opacity', 0.0);
+      } catch (_) {}
+    } else {
+      // Hide heatmap, restore hex polygons
+      try {
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_heatmapLayerId, 'heatmap-opacity', 0.0);
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_lockedLayerId, 'fill-opacity', 0.85);
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_unlockedLayerId, 'fill-opacity', 0.8);
+      } catch (_) {}
+    }
   }
 
   Future<void> _clearHexLayers() async {
@@ -298,32 +378,84 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
           ),
 
-          // Location button
+          // Right-side button column
           Positioned(
-            bottom: 100,
+            bottom: 110,
             right: 16,
-            child: _LocationButton(
-              onTap: () async {
-                final pos = await LocationService.getCurrentPosition();
-                if (pos != null && _mapboxMap != null) {
-                  await _mapboxMap!.flyTo(
-                    CameraOptions(
-                      center: Point(
-                          coordinates:
-                              Position(pos.longitude, pos.latitude)),
-                      zoom: 14,
-                    ),
-                    MapAnimationOptions(duration: 800),
-                  );
-                }
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Heatmap toggle
+                _MapIconButton(
+                  icon: _heatmapEnabled
+                      ? Icons.whatshot
+                      : Icons.whatshot_outlined,
+                  color: _heatmapEnabled
+                      ? Colors.deepOrange
+                      : const Color(kColorAccent),
+                  tooltip: _heatmapEnabled ? 'Hide Heatmap' : 'Show Heatmap',
+                  onTap: _toggleHeatmap,
+                ),
+                const SizedBox(height: 8),
+
+                // Trip replay
+                _MapIconButton(
+                  icon: Icons.play_circle_outline,
+                  tooltip: 'Trip Replay',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const TripReplayScreen()),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Collaborative map
+                _MapIconButton(
+                  icon: Icons.group_outlined,
+                  tooltip: 'Group Map',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CollaborativeMapScreen()),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Location button
+                _MapIconButton(
+                  icon: Icons.my_location,
+                  tooltip: 'My Location',
+                  onTap: () async {
+                    final pos = await LocationService.getCurrentPosition();
+                    if (pos != null && _mapboxMap != null) {
+                      await _mapboxMap!.flyTo(
+                        CameraOptions(
+                          center: Point(
+                              coordinates:
+                                  Position(pos.longitude, pos.latitude)),
+                          zoom: 14,
+                        ),
+                        MapAnimationOptions(duration: 800),
+                      );
+                    }
+                  },
+                ),
+              ],
             ),
+          ),
+
+          // Streak badge (top-right below header)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 68,
+            right: 16,
+            child: const StreakBadge(compact: true),
           ),
 
           // Emergency FAB (Corn + Husker)
           const Positioned(
-            bottom: 100,
-            right: 16,
+            bottom: 110,
+            left: 16,
             child: EmergencyFAB(),
           ),
         ],
@@ -393,35 +525,41 @@ class _TopBar extends ConsumerWidget {
   }
 }
 
-class _LocationButton extends StatelessWidget {
+class _MapIconButton extends StatelessWidget {
+  final IconData icon;
   final VoidCallback onTap;
+  final Color color;
+  final String tooltip;
 
-  const _LocationButton({required this.onTap});
+  const _MapIconButton({
+    required this.icon,
+    required this.onTap,
+    this.color = const Color(kColorAccent),
+    this.tooltip = '',
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        margin: const EdgeInsets.only(bottom: 60),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(kColorAccent), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.my_location,
-          color: Color(kColorAccent),
-          size: 22,
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withOpacity(0.6), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, color: color, size: 20),
         ),
       ),
     );

@@ -14,6 +14,8 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/export/export_screen.dart';
 import '../screens/trip_setup/trip_setup_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
+import '../screens/badges/badges_screen.dart';
+import '../screens/offline/offline_tiles_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -94,6 +96,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/export',
         builder: (context, state) => const ExportScreen(),
+      ),
+      GoRoute(
+        path: '/badges',
+        builder: (context, state) => const BadgesScreen(),
+      ),
+      GoRoute(
+        path: '/offline-tiles',
+        builder: (context, state) => const OfflineTilesScreen(),
       ),
     ],
   );

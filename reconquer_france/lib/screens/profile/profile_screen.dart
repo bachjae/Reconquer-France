@@ -4,7 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/map_provider.dart';
+import '../../providers/badge_provider.dart';
+import '../../providers/streak_provider.dart';
+import '../../providers/elevation_provider.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/streak_badge.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -14,6 +18,8 @@ class ProfileScreen extends ConsumerWidget {
     final profile = ref.watch(refreshableProfileProvider);
     final unlockedCount = ref.watch(unlockedCellsProvider).length;
     final percent = (unlockedCount / TOTAL_FRANCE_HEXES * 100);
+    final earnedBadges = ref.watch(earnedBadgeCountProvider);
+    final elevation = ref.watch(elevationProvider);
 
     return Scaffold(
       backgroundColor: const Color(kColorBackground),
@@ -56,9 +62,26 @@ class ProfileScreen extends ConsumerWidget {
                       child: _StatsGrid(
                         unlockedCount: unlockedCount,
                         percent: percent,
+                        earnedBadges: earnedBadges,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+
+                    // Streak panel
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: StreakBadge(compact: false),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Elevation panel
+                    if (elevation.samplesCount > 0)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _ElevationPanel(stats: elevation),
+                      ),
+                    if (elevation.samplesCount > 0)
+                      const SizedBox(height: 20),
 
                     // Settings
                     Padding(
@@ -172,27 +195,56 @@ class _ProfileHeader extends StatelessWidget {
 class _StatsGrid extends StatelessWidget {
   final int unlockedCount;
   final double percent;
+  final int earnedBadges;
 
-  const _StatsGrid({required this.unlockedCount, required this.percent});
+  const _StatsGrid({
+    required this.unlockedCount,
+    required this.percent,
+    required this.earnedBadges,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _StatCard(
-            value: unlockedCount.toString(),
-            label: 'Cells Unlocked',
-            emoji: '🗺️',
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                value: unlockedCount.toString(),
+                label: 'Cells Unlocked',
+                emoji: '🗺️',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                value: '${percent.toStringAsFixed(2)}%',
+                label: 'France Conquered',
+                emoji: '🇫🇷',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            value: '${percent.toStringAsFixed(2)}%',
-            label: 'France Conquered',
-            emoji: '🇫🇷',
-          ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                value: '$earnedBadges',
+                label: 'Region Badges',
+                emoji: '🏅',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                value: '${(percent * 5500).round()}',
+                label: 'km² Explored',
+                emoji: '📐',
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -241,6 +293,100 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _ElevationPanel extends StatelessWidget {
+  final ElevationStats stats;
+
+  const _ElevationPanel({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2A2A4E)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🏔️', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Text('Elevation Stats',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _ElevStat(
+                label: 'Max Alt.',
+                value: '${stats.maxAltitude.round()}m',
+                color: Colors.lightBlue,
+              ),
+              const SizedBox(width: 10),
+              _ElevStat(
+                label: 'Ascent',
+                value: '↑${stats.totalAscent.round()}m',
+                color: Colors.green,
+              ),
+              const SizedBox(width: 10),
+              _ElevStat(
+                label: 'Descent',
+                value: '↓${stats.totalDescent.round()}m',
+                color: Colors.redAccent,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ElevStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _ElevStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.25)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: color),
+            ),
+            const SizedBox(height: 2),
+            Text(label,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(fontSize: 10, color: Colors.white54)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -250,15 +396,21 @@ class _SettingsSection extends StatelessWidget {
         Text('Settings', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         _SettingsTile(
-          icon: Icons.notifications_outlined,
-          title: 'Notifications',
-          subtitle: 'Corn & Husker alerts',
-          onTap: () {},
+          icon: Icons.emoji_events_outlined,
+          title: 'Region Badges',
+          subtitle: 'View your France region achievements',
+          onTap: () => context.push('/badges'),
         ),
         _SettingsTile(
           icon: Icons.download_outlined,
           title: 'Offline Map',
           subtitle: 'Download France for offline use',
+          onTap: () => context.push('/offline-tiles'),
+        ),
+        _SettingsTile(
+          icon: Icons.notifications_outlined,
+          title: 'Notifications',
+          subtitle: 'Corn & Husker alerts',
           onTap: () {},
         ),
         _SettingsTile(
