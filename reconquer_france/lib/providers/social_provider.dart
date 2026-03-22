@@ -122,7 +122,7 @@ final groupAlertsProvider =
       .collection('groups')
       .doc(groupId)
       .collection('alerts')
-      .whereNull('resolvedAt')
+      .where('resolvedAt', isEqualTo: null)
       .orderBy('timestamp', descending: true)
       .limit(20)
       .snapshots()
