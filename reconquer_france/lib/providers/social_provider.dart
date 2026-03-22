@@ -23,8 +23,7 @@ final activeGroupProvider = StreamProvider<TripGroup?>((ref) async* {
       .snapshots()
       .map((snap) {
     if (snap.docs.isEmpty) return null;
-    return TripGroup.fromFirestore(snap.docs.first
-        as DocumentSnapshot<Map<String, dynamic>>);
+    return TripGroup.fromFirestore(snap.docs.first);
   });
 });
 
@@ -36,8 +35,7 @@ final groupLeaderboardProvider =
       .doc(groupId)
       .snapshots()
       .asyncMap((groupSnap) async {
-    final group = TripGroup.fromFirestore(
-        groupSnap as DocumentSnapshot<Map<String, dynamic>>);
+    final group = TripGroup.fromFirestore(groupSnap);
 
     final entries = <LeaderboardEntry>[];
 
@@ -112,8 +110,7 @@ final pendingFriendRequestsProvider =
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .map((snap) => snap.docs
-            .map((d) => FriendRequest.fromFirestore(
-                d as DocumentSnapshot<Map<String, dynamic>>))
+            .map((d) => FriendRequest.fromFirestore(d))
             .toList());
   });
 });
@@ -125,13 +122,12 @@ final groupAlertsProvider =
       .collection('groups')
       .doc(groupId)
       .collection('alerts')
-      .where('resolvedAt', isNull: true)
+      .whereNull('resolvedAt')
       .orderBy('timestamp', descending: true)
       .limit(20)
       .snapshots()
       .map((snap) => snap.docs
-          .map((d) => GroupAlert.fromFirestore(
-              d as DocumentSnapshot<Map<String, dynamic>>))
+          .map((d) => GroupAlert.fromFirestore(d))
           .toList());
 });
 
@@ -196,8 +192,7 @@ class SocialActions {
     });
 
     final doc = await docRef.get();
-    return TripGroup.fromFirestore(
-        doc as DocumentSnapshot<Map<String, dynamic>>);
+    return TripGroup.fromFirestore(doc);
   }
 
   static Future<TripGroup?> joinGroupByCode(String inviteCode) async {
@@ -217,8 +212,7 @@ class SocialActions {
       'memberIds': FieldValue.arrayUnion([uid]),
     });
 
-    return TripGroup.fromFirestore(
-        groupDoc as DocumentSnapshot<Map<String, dynamic>>);
+    return TripGroup.fromFirestore(groupDoc);
   }
 
   static String _generateInviteCode() {

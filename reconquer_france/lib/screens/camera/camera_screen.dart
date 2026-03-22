@@ -9,6 +9,7 @@ import '../../providers/map_provider.dart';
 import '../../providers/photo_provider.dart';
 import '../../services/photo_service.dart';
 import '../../services/location_service.dart';
+import '../../services/hex_grid_service.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});

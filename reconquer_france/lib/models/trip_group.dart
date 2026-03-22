@@ -30,9 +30,8 @@ class TripGroup {
     };
   }
 
-  factory TripGroup.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+  factory TripGroup.fromFirestore(DocumentSnapshot doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
     return TripGroup(
       id: doc.id,
       name: data['name'] as String? ?? '',
@@ -71,9 +70,8 @@ class GroupAlert {
 
   bool get isResolved => resolvedAt != null;
 
-  factory GroupAlert.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+  factory GroupAlert.fromFirestore(DocumentSnapshot doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
     return GroupAlert(
       id: doc.id,
       type: data['type'] == 'husker' ? AlertType.husker : AlertType.corn,
@@ -106,9 +104,8 @@ class FriendRequest {
     required this.createdAt,
   });
 
-  factory FriendRequest.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+  factory FriendRequest.fromFirestore(DocumentSnapshot doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
     return FriendRequest(
       id: doc.id,
       fromUid: data['fromUid'] as String? ?? '',

@@ -53,9 +53,8 @@ class UserProfile {
     };
   }
 
-  factory UserProfile.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+  factory UserProfile.fromFirestore(DocumentSnapshot doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
     return UserProfile(
       uid: doc.id,
       displayName: data['displayName'] as String? ?? '',
@@ -128,8 +127,8 @@ class Trip {
     };
   }
 
-  factory Trip.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+  factory Trip.fromFirestore(DocumentSnapshot doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
     return Trip(
       id: doc.id,
       name: data['name'] as String? ?? 'France Trip',

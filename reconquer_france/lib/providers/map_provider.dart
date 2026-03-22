@@ -51,116 +51,130 @@ class CellsNotifier extends StateNotifier<Set<String>> {
 
 /// Friends' unlocked cells — stream from Firestore
 final friendsCellsProvider =
-    StreamProvider<Map<String, Set<String>>>((ref) async* {
+    StreamProvider<Map<String, Set<String>>>((ref) {
   final user = ref.watch(authStateProvider).value;
-  if (user == null) {
-    yield {};
-    return;
-  }
+  if (user == null) return Stream.value({});
 
   final firestore = FirebaseFirestore.instance;
-
-  // Get user's friend list
-  final userDoc = await firestore.collection('users').doc(user.uid).get();
-  final friendIds = List<String>.from(
-      userDoc.data()?['friendIds'] as List? ?? []);
-
-  if (friendIds.isEmpty) {
-    yield {};
-    return;
-  }
-
-  // Listen to friend trip documents
   final Map<String, Set<String>> friendCells = {};
+  final controller = StreamController<Map<String, Set<String>>>();
+  final subs = <StreamSubscription>[];
 
-  final controllers = <StreamSubscription>[];
+  // Load friend list then subscribe to each friend's latest trip
+  firestore.collection('users').doc(user.uid).get().then((userDoc) {
+    final friendIds = List<String>.from(
+        (userDoc.data()?['friendIds'] as List?) ?? []);
 
-  for (final friendId in friendIds.take(8)) {
-    // Limit to 8 friends for perf
-    final sub = firestore
-        .collection('users')
-        .doc(friendId)
-        .collection('trips')
-        .orderBy('startDate', descending: true)
-        .limit(1)
-        .snapshots()
-        .listen((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final cells = List<String>.from(
-            snapshot.docs.first.data()['unlockedCells'] as List? ?? []);
-        friendCells[friendId] = cells.toSet();
-      }
-    });
-    controllers.add(sub);
-  }
+    if (friendIds.isEmpty) {
+      controller.add({});
+      return;
+    }
 
-  // Yield periodically as updates come
-  await for (final _ in Stream.periodic(const Duration(seconds: 5))) {
-    yield Map<String, Set<String>>.from(friendCells);
-  }
+    for (final friendId in friendIds.take(8)) {
+      final sub = firestore
+          .collection('users')
+          .doc(friendId)
+          .collection('trips')
+          .orderBy('startDate', descending: true)
+          .limit(1)
+          .snapshots()
+          .listen((snapshot) {
+        if (snapshot.docs.isNotEmpty) {
+          final cells = List<String>.from(
+              snapshot.docs.first.data()['unlockedCells'] as List? ?? []);
+          friendCells[friendId] = cells.toSet();
+        } else {
+          friendCells.remove(friendId);
+        }
+        if (!controller.isClosed) {
+          controller.add(Map<String, Set<String>>.from(friendCells));
+        }
+      }, onError: (_) {});
+      subs.add(sub);
+    }
+  }).catchError((_) => controller.add({}));
+
+  // Cancel all subscriptions when provider is disposed
+  ref.onDispose(() {
+    for (final sub in subs) {
+      sub.cancel();
+    }
+    controller.close();
+  });
+
+  return controller.stream;
 });
 
 /// Group members' cells for the current trip group
 final groupCellsProvider =
-    StreamProvider<Map<String, Set<String>>>((ref) async* {
+    StreamProvider<Map<String, Set<String>>>((ref) {
   final tripId = ref.watch(currentTripIdProvider);
   final user = ref.watch(authStateProvider).value;
 
-  if (tripId == null || user == null) {
-    yield {};
-    return;
-  }
+  if (tripId == null || user == null) return Stream.value({});
 
   final firestore = FirebaseFirestore.instance;
-
-  // Get the trip to find group
-  final tripDoc = await firestore
-      .collection('users')
-      .doc(user.uid)
-      .collection('trips')
-      .doc(tripId)
-      .get();
-
-  final groupId = tripDoc.data()?['groupId'] as String?;
-  if (groupId == null) {
-    yield {};
-    return;
-  }
-
-  // Get group members
-  final groupDoc =
-      await firestore.collection('groups').doc(groupId).get();
-  final memberIds = List<String>.from(
-      groupDoc.data()?['memberIds'] as List? ?? []);
-
   final Map<String, Set<String>> memberCells = {};
+  final controller = StreamController<Map<String, Set<String>>>();
+  final subs = <StreamSubscription>[];
 
-  // Stream each member's cells
-  yield* firestore
-      .collection('groups')
-      .doc(groupId)
-      .snapshots()
-      .asyncExpand((_) async* {
-    for (final memberId in memberIds) {
-      if (memberId == user.uid) continue;
-      try {
-        final trips = await firestore
+  // Bootstrap: load trip → group → member ids, then subscribe
+  () async {
+    try {
+      final tripDoc = await firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('trips')
+          .doc(tripId)
+          .get();
+
+      final groupId = (tripDoc.data() as Map<String, dynamic>?)?['groupId'] as String?;
+      if (groupId == null) {
+        controller.add({});
+        return;
+      }
+
+      final groupDoc = await firestore.collection('groups').doc(groupId).get();
+      final memberIds = List<String>.from(
+          (groupDoc.data() as Map<String, dynamic>?)?['memberIds'] as List? ?? []);
+
+      for (final memberId in memberIds) {
+        if (memberId == user.uid) continue;
+
+        final sub = firestore
             .collection('users')
             .doc(memberId)
             .collection('trips')
             .orderBy('startDate', descending: true)
             .limit(1)
-            .get();
-
-        if (trips.docs.isNotEmpty) {
-          final cells = List<String>.from(
-              trips.docs.first.data()['unlockedCells'] as List? ?? []);
-          memberCells[memberId] = cells.toSet();
-        }
-      } catch (_) {}
+            .snapshots()
+            .listen((snapshot) {
+          if (snapshot.docs.isNotEmpty) {
+            final cells = List<String>.from(
+                snapshot.docs.first.data()['unlockedCells'] as List? ?? []);
+            memberCells[memberId] = cells.toSet();
+          } else {
+            memberCells.remove(memberId);
+          }
+          if (!controller.isClosed) {
+            controller.add(Map<String, Set<String>>.from(memberCells));
+          }
+        }, onError: (_) {});
+        subs.add(sub);
+      }
+    } catch (_) {
+      if (!controller.isClosed) controller.add({});
     }
-    yield Map<String, Set<String>>.from(memberCells);
+  }();
+
+  ref.onDispose(() {
+    for (final sub in subs) {
+      sub.cancel();
+    }
+    controller.close();
   });
+
+  return controller.stream;
 });
 
 /// Viewport bounds state for hex culling

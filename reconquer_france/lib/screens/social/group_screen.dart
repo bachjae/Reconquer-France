@@ -32,8 +32,7 @@ class GroupScreen extends ConsumerWidget {
         builder: (context, snapshot) {
           TripGroup? group;
           if (snapshot.hasData && snapshot.data!.exists) {
-            group = TripGroup.fromFirestore(
-                snapshot.data! as DocumentSnapshot<Map<String, dynamic>>);
+            group = TripGroup.fromFirestore(snapshot.data!);
           }
 
           return ListView(
