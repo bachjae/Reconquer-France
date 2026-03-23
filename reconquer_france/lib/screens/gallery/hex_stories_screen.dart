@@ -36,12 +36,15 @@ class _HexStoriesScreenState extends ConsumerState<HexStoriesScreen>
         _advancePage();
       }
     });
+    // Build stories on first frame — ref is available immediately in
+    // ConsumerState.initState() in Riverpod 2.x
+    WidgetsBinding.instance.addPostFrameCallback((_) => _buildStories());
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _buildStories();
+    // intentionally empty — stories are built once in initState
   }
 
   void _buildStories() {

@@ -54,7 +54,7 @@ class OfflineTileService {
         networkRestriction: NetworkRestriction.none,
       );
 
-      final stream = tileStore.loadTileRegion(
+      await tileStore.loadTileRegion(
         'france-offline',
         loadOptions,
         (progress) {
@@ -66,8 +66,6 @@ class OfflineTileService {
           }
         },
       );
-
-      await stream;
       await _box.put('france_downloaded', true);
       await _box.put('france_progress', 1.0);
       onComplete();
