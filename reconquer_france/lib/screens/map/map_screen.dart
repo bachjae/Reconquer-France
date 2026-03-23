@@ -45,6 +45,9 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // Heatmap circles
   List<CircleMarker> _heatmapCircles = [];
 
+  // Low-zoom conquest dots (shown when zoom < 8 to maintain fog of war)
+  List<CircleMarker> _lowZoomDots = [];
+
   @override
   void initState() {
     super.initState();
@@ -112,10 +115,24 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final zoom = camera.zoom;
 
     if (zoom < 8.0) {
+      // Below hex-detail zoom: clear polygons but show conquered cells as dots
+      // so France stays fogged and the user can see their progress.
+      final unlockedCells = ref.read(unlockedCellsProvider);
       setState(() {
         _lockedPolygons = [];
         _unlockedPolygons = [];
         _heatmapCircles = [];
+        _lowZoomDots = unlockedCells.take(3000).map((hexId) {
+          final center = HexGridService.hexIdToCenter(hexId);
+          return CircleMarker(
+            point: LatLng(center.latitude, center.longitude),
+            radius: 5,
+            color: const Color(kColorUnlockedHex).withOpacity(0.9),
+            borderColor: const Color(kColorAccent).withOpacity(0.5),
+            borderStrokeWidth: 0.8,
+            useRadiusInMeter: false,
+          );
+        }).toList();
       });
       return;
     }
@@ -178,6 +195,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
       _lockedPolygons = locked;
       _unlockedPolygons = unlocked;
       _heatmapCircles = circles;
+      _lowZoomDots = [];
     });
   }
 
@@ -253,6 +271,28 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 ],
               ),
 
+              // France fog overlay — persists at ALL zoom levels so the map
+              // never reveals all of France. Unlocked hexes render on top.
+              PolygonLayer(
+                polygons: [
+                  Polygon(
+                    points: [
+                      LatLng(FRANCE_NORTH, FRANCE_WEST),
+                      LatLng(FRANCE_NORTH, FRANCE_EAST),
+                      LatLng(FRANCE_SOUTH, FRANCE_EAST),
+                      LatLng(FRANCE_SOUTH, FRANCE_WEST),
+                    ],
+                    color: const Color(kColorBackground).withOpacity(0.82),
+                    isFilled: true,
+                  ),
+                ],
+              ),
+
+              // Low-zoom conquest dots (zoom < 8): shows conquered cells
+              // as glowing dots through the fog without rendering all hexes.
+              if (_lowZoomDots.isNotEmpty)
+                CircleLayer(circles: _lowZoomDots),
+
               // Locked hex polygons (fog of war)
               if (!_heatmapEnabled)
                 PolygonLayer(
@@ -316,7 +356,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                       _heatmapEnabled ? 'Hide Heatmap' : 'Show Heatmap',
                   onTap: _toggleHeatmap,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _MapIconButton(
                   icon: Icons.play_circle_outline,
                   tooltip: 'Trip Replay',
@@ -326,7 +366,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                         builder: (_) => const TripReplayScreen()),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _MapIconButton(
                   icon: Icons.group_outlined,
                   tooltip: 'Group Map',
@@ -336,7 +376,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
                         builder: (_) => const CollaborativeMapScreen()),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _MapIconButton(
                   icon: Icons.route_outlined,
                   tooltip: 'Route Planner',
@@ -346,13 +386,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
                         builder: (_) => const RoutePlannerScreen()),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _MapIconButton(
                   icon: Icons.ios_share,
                   tooltip: 'Export & Share',
                   onTap: () => context.go('/export'),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _MapIconButton(
                   icon: Icons.my_location,
                   tooltip: 'My Location',
@@ -462,8 +502,8 @@ class _MapIconButton extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 44,
-          height: 44,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A2E),
             shape: BoxShape.circle,
@@ -476,7 +516,7 @@ class _MapIconButton extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(icon, color: color, size: 20),
+          child: Icon(icon, color: color, size: 18),
         ),
       ),
     );
