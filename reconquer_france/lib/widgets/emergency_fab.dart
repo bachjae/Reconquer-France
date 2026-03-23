@@ -49,7 +49,7 @@ class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('🌽 Alert sent to ${group.memberIds.length - 1} members'),
+          content: Text('🌽 Alert sent to ${group.leaderIds.length} group leader(s)'),
           backgroundColor: const Color(kColorCorn).withOpacity(0.8),
         ),
       );
@@ -81,8 +81,8 @@ class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
           style: TextStyle(color: Color(kColorHusker)),
         ),
         content: const Text(
-          'This will send an URGENT emergency alert to ALL your friends and '
-          'group members. This bypasses silent mode.\n\n'
+          'This will send an URGENT emergency alert to all group leaders. '
+          'This bypasses silent mode.\n\n'
           'Only use in a real emergency!',
           style: TextStyle(color: Colors.white70),
         ),

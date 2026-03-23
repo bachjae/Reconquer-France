@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/constants.dart';
 import '../../models/trip_group.dart';
 import '../../providers/social_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/notification_service.dart';
 
 class GroupScreen extends ConsumerWidget {
   final String groupId;
@@ -13,8 +16,9 @@ class GroupScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.watch(authStateProvider).value;
     final leaderboard = ref.watch(groupLeaderboardProvider(groupId));
-    final alerts = ref.watch(groupAlertsProvider(groupId));
+    final alerts = ref.watch(myGroupAlertsProvider);
 
     return Scaffold(
       backgroundColor: const Color(kColorBackground),
@@ -42,7 +46,7 @@ class GroupScreen extends ConsumerWidget {
               if (group != null) _GroupHeader(group: group),
               const SizedBox(height: 16),
 
-              // Recent alerts
+              // Recent alerts (filtered by role)
               Text('Recent Alerts',
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
@@ -63,8 +67,7 @@ class GroupScreen extends ConsumerWidget {
                         .toList(),
                   );
                 },
-                loading: () =>
-                    const CircularProgressIndicator(),
+                loading: () => const CircularProgressIndicator(),
                 error: (_, __) => const SizedBox.shrink(),
               ),
               const SizedBox(height: 16),
@@ -84,10 +87,16 @@ class GroupScreen extends ConsumerWidget {
                           ))
                       .toList(),
                 ),
-                loading: () =>
-                    const CircularProgressIndicator(),
+                loading: () => const CircularProgressIndicator(),
                 error: (_, __) => const SizedBox.shrink(),
               ),
+              const SizedBox(height: 16),
+
+              // Role management (only visible to group creator)
+              if (group != null &&
+                  currentUser != null &&
+                  group.createdBy == currentUser.uid)
+                _RoleManagementSection(group: group),
             ],
           );
         },
@@ -121,13 +130,12 @@ class _GroupHeader extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
-              '${group.memberIds.length} members',
+              '${group.memberIds.length} members · ${group.leaderIds.length} leader(s)',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
-            // Share invite code
             OutlinedButton.icon(
               onPressed: () => Share.share(
                 'Join my France trip group!\nInvite code: ${group.inviteCode}\n'
@@ -196,7 +204,8 @@ class _AlertCard extends ConsumerWidget {
           ),
           if (!alert.isResolved)
             TextButton(
-              onPressed: () {},
+              onPressed: () =>
+                  NotificationService.resolveAlert(groupId, alert.id),
               child: Text(
                 "I'm coming",
                 style: TextStyle(
@@ -219,9 +228,11 @@ class _LeaderboardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final roleLabel = entry.role == GroupMemberRole.leader ? ' 👑' : '';
+
     return ListTile(
       leading: Text(rank == 1 ? '👑' : '#$rank'),
-      title: Text('${entry.avatarEmoji} ${entry.displayName}'),
+      title: Text('${entry.avatarEmoji} ${entry.displayName}$roleLabel'),
       subtitle: Text('@${entry.username}'),
       trailing: Text(
         '${entry.cellsUnlocked} cells',
@@ -230,6 +241,85 @@ class _LeaderboardRow extends StatelessWidget {
             .titleSmall
             ?.copyWith(color: const Color(kColorAccent)),
       ),
+    );
+  }
+}
+
+/// Role management panel — only shown to the group creator.
+class _RoleManagementSection extends ConsumerWidget {
+  final TripGroup group;
+
+  const _RoleManagementSection({required this.group});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Manage Roles',
+            style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          'Assign leaders who will receive corn & husker alerts.',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: Colors.white54),
+        ),
+        const SizedBox(height: 8),
+        ...group.memberIds.map((uid) {
+          final role = group.roleOf(uid);
+          final isCreator = uid == group.createdBy;
+
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(
+              backgroundColor: role == GroupMemberRole.leader
+                  ? const Color(kColorCorn).withOpacity(0.2)
+                  : Colors.white10,
+              child: Text(
+                role == GroupMemberRole.leader ? '👑' : '👤',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+            title: Text(
+              isCreator ? '$uid (you)' : uid,
+              style: Theme.of(context).textTheme.bodyMedium,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              isCreator
+                  ? 'Creator · Leader'
+                  : role == GroupMemberRole.leader
+                      ? 'Leader'
+                      : 'Student',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            trailing: isCreator
+                ? null // Creator role is fixed
+                : TextButton(
+                    onPressed: () => SocialActions.assignRole(
+                      groupId: group.id,
+                      createdBy: group.createdBy,
+                      targetUid: uid,
+                      role: role == GroupMemberRole.leader
+                          ? GroupMemberRole.student
+                          : GroupMemberRole.leader,
+                    ),
+                    child: Text(
+                      role == GroupMemberRole.leader
+                          ? 'Demote'
+                          : 'Make Leader',
+                      style: TextStyle(
+                        color: role == GroupMemberRole.leader
+                            ? Colors.white54
+                            : const Color(kColorCorn),
+                      ),
+                    ),
+                  ),
+          );
+        }),
+      ],
     );
   }
 }

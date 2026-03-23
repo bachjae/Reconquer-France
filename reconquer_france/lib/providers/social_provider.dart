@@ -62,6 +62,7 @@ final groupLeaderboardProvider =
           avatarEmoji: profile.avatarEmoji,
           cellsUnlocked: totalCells,
           percentFrance: totalCells / 550000 * 100,
+          role: group.roleOf(uid),
         ));
       } catch (_) {}
     }
@@ -78,6 +79,7 @@ class LeaderboardEntry {
   final String avatarEmoji;
   final int cellsUnlocked;
   final double percentFrance;
+  final GroupMemberRole role;
 
   const LeaderboardEntry({
     required this.uid,
@@ -86,6 +88,7 @@ class LeaderboardEntry {
     required this.avatarEmoji,
     required this.cellsUnlocked,
     required this.percentFrance,
+    required this.role,
   });
 }
 
@@ -95,7 +98,6 @@ final pendingFriendRequestsProvider =
   final user = ref.watch(authStateProvider).value;
   if (user == null) return const Stream.empty();
 
-  // Get user's username to find requests addressed to them
   return _firestore
       .collection('users')
       .doc(user.uid)
@@ -115,7 +117,33 @@ final pendingFriendRequestsProvider =
   });
 });
 
-/// Group alerts stream
+/// All unresolved alerts for the current user's group.
+/// Leaders see every alert; students only see alerts with recipientType == 'all'.
+final myGroupAlertsProvider = StreamProvider<List<GroupAlert>>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final group = ref.watch(activeGroupProvider).value;
+  if (user == null || group == null) return const Stream.empty();
+
+  final isLeader = group.roleOf(user.uid) == GroupMemberRole.leader;
+
+  return _firestore
+      .collection('groups')
+      .doc(group.id)
+      .collection('alerts')
+      .where('resolvedAt', isEqualTo: null)
+      .orderBy('timestamp', descending: true)
+      .limit(20)
+      .snapshots()
+      .map((snap) {
+    final all =
+        snap.docs.map((d) => GroupAlert.fromFirestore(d)).toList();
+    if (isLeader) return all;
+    // Students only see alerts not targeted exclusively at leaders
+    return all.where((a) => a.recipientType == 'all').toList();
+  });
+});
+
+/// Raw alerts stream (family — used by GroupScreen which receives groupId)
 final groupAlertsProvider =
     StreamProvider.family<List<GroupAlert>, String>((ref, groupId) {
   return _firestore
@@ -151,13 +179,11 @@ class SocialActions {
 
     final batch = _firestore.batch();
 
-    // Update request status
     batch.update(
       _firestore.collection('friendRequests').doc(request.id),
       {'status': 'accepted'},
     );
 
-    // Add each other as friends
     batch.update(
       _firestore.collection('users').doc(uid),
       {'friendIds': FieldValue.arrayUnion([request.fromUid])},
@@ -172,8 +198,10 @@ class SocialActions {
   }
 
   static Future<void> declineFriendRequest(String requestId) async {
-    await _firestore.collection('friendRequests').doc(requestId).update(
-        {'status': 'declined'});
+    await _firestore
+        .collection('friendRequests')
+        .doc(requestId)
+        .update({'status': 'declined'});
   }
 
   static Future<TripGroup> createGroup(String name, String tripId) async {
@@ -186,6 +214,7 @@ class SocialActions {
       'name': name,
       'createdBy': uid,
       'memberIds': [uid],
+      'roles': {uid: 'leader'}, // Creator is always a leader
       'tripId': tripId,
       'inviteCode': inviteCode,
       'createdAt': FieldValue.serverTimestamp(),
@@ -210,9 +239,25 @@ class SocialActions {
     final groupDoc = query.docs.first;
     await _firestore.collection('groups').doc(groupDoc.id).update({
       'memberIds': FieldValue.arrayUnion([uid]),
+      'roles.$uid': 'student', // Joiners start as students
     });
 
     return TripGroup.fromFirestore(groupDoc);
+  }
+
+  /// Assign a role to a group member. Only the group creator can do this.
+  static Future<void> assignRole({
+    required String groupId,
+    required String createdBy,
+    required String targetUid,
+    required GroupMemberRole role,
+  }) async {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid != createdBy) return;
+
+    await _firestore.collection('groups').doc(groupId).update({
+      'roles.$targetUid': role == GroupMemberRole.leader ? 'leader' : 'student',
+    });
   }
 
   static String _generateInviteCode() {

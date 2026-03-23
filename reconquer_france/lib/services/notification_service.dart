@@ -166,6 +166,7 @@ class NotificationService {
       'lat': lat,
       'lng': lng,
       'message': message,
+      'recipientType': 'leaders_only',
       'timestamp': FieldValue.serverTimestamp(),
       'resolvedAt': null,
     });
@@ -189,6 +190,7 @@ class NotificationService {
       'lat': lat,
       'lng': lng,
       'message': 'URGENT — needs immediate help',
+      'recipientType': 'leaders_only',
       'timestamp': FieldValue.serverTimestamp(),
       'resolvedAt': null,
     });
