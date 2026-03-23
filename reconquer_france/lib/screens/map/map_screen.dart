@@ -8,7 +8,7 @@ import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/location_service.dart';
-import '../../services/hex_grid_service.dart';
+import '../../services/hex_grid_service.dart' hide LatLng;
 import '../../services/offline_tile_service.dart';
 import '../../widgets/emergency_fab.dart';
 import '../../widgets/progress_badge.dart';

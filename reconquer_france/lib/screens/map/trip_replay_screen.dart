@@ -4,7 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants.dart';
 import '../../services/sync_service.dart';
-import '../../services/hex_grid_service.dart';
+import '../../services/hex_grid_service.dart' hide LatLng;
 import '../../services/offline_tile_service.dart';
 
 class TripReplayScreen extends StatefulWidget {
