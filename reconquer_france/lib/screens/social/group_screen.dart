@@ -283,40 +283,37 @@ class _RoleManagementSection extends ConsumerWidget {
               ),
             ),
             title: Text(
-              isCreator ? '$uid (you)' : uid,
+              isCreator ? '$uid (admin)' : uid,
               style: Theme.of(context).textTheme.bodyMedium,
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
               isCreator
-                  ? 'Creator · Leader'
+                  ? 'Admin · ${role == GroupMemberRole.leader ? "Leader" : "Student"}'
                   : role == GroupMemberRole.leader
                       ? 'Leader'
                       : 'Student',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            trailing: isCreator
-                ? null // Creator role is fixed
-                : TextButton(
-                    onPressed: () => SocialActions.assignRole(
-                      groupId: group.id,
-                      createdBy: group.createdBy,
-                      targetUid: uid,
-                      role: role == GroupMemberRole.leader
-                          ? GroupMemberRole.student
-                          : GroupMemberRole.leader,
-                    ),
-                    child: Text(
-                      role == GroupMemberRole.leader
-                          ? 'Demote'
-                          : 'Make Leader',
-                      style: TextStyle(
-                        color: role == GroupMemberRole.leader
-                            ? Colors.white54
-                            : const Color(kColorCorn),
-                      ),
-                    ),
-                  ),
+            // Admin can change any member's role, including their own
+            trailing: TextButton(
+              onPressed: () => SocialActions.assignRole(
+                groupId: group.id,
+                createdBy: group.createdBy,
+                targetUid: uid,
+                role: role == GroupMemberRole.leader
+                    ? GroupMemberRole.student
+                    : GroupMemberRole.leader,
+              ),
+              child: Text(
+                role == GroupMemberRole.leader ? 'Demote' : 'Make Leader',
+                style: TextStyle(
+                  color: role == GroupMemberRole.leader
+                      ? Colors.white54
+                      : const Color(kColorCorn),
+                ),
+              ),
+            ),
           );
         }),
       ],

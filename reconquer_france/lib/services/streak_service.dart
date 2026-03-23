@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'notification_service.dart';
 
 /// Tracks daily exploration streaks using Hive local storage.
 class StreakService {
@@ -65,6 +66,11 @@ class StreakService {
         await _box.put(_keyCurrentStreak, newStreak);
         if (newStreak > longestStreak) {
           await _box.put(_keyLongestStreak, newStreak);
+        }
+        // Streak milestone notifications (fire-and-forget)
+        const streakMilestones = {3, 7, 14, 30};
+        if (streakMilestones.contains(newStreak)) {
+          NotificationService.showStreakMilestone(newStreak);
         }
       } else if (diff > 1) {
         // Streak broken

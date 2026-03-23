@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../core/constants.dart';
 import 'streak_service.dart';
 import 'elevation_service.dart';
+import 'notification_service.dart';
 
 class SyncService {
   static late Box<String> _cellsBox;
@@ -53,6 +54,13 @@ class SyncService {
 
     // Record streak activity
     await StreakService.recordActivity();
+
+    // Fire milestone notification if applicable (fire-and-forget)
+    const milestones = {100, 500, 1000, 5000, 10000};
+    final count = _cellsBox.length;
+    if (milestones.contains(count)) {
+      NotificationService.showMilestone(count);
+    }
 
     // Queue for remote sync
     final queueEntry = {

@@ -16,6 +16,7 @@ import '../../widgets/streak_badge.dart';
 import 'hex_detail_sheet.dart';
 import 'trip_replay_screen.dart';
 import 'collaborative_map_screen.dart';
+import 'route_planner_screen.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -334,6 +335,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     MaterialPageRoute(
                         builder: (_) => const CollaborativeMapScreen()),
                   ),
+                ),
+                const SizedBox(height: 8),
+                _MapIconButton(
+                  icon: Icons.route_outlined,
+                  tooltip: 'Route Planner',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const RoutePlannerScreen()),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _MapIconButton(
+                  icon: Icons.ios_share,
+                  tooltip: 'Export & Share',
+                  onTap: () => context.go('/export'),
                 ),
                 const SizedBox(height: 8),
                 _MapIconButton(

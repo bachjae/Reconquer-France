@@ -18,6 +18,8 @@ class NotificationService {
 
   static const String _cornChannelId = 'corn_alert';
   static const String _huskerChannelId = 'husker_emergency';
+  static const String _milestoneChannelId = 'milestones';
+  static const String _streakChannelId = 'streak';
 
   static Future<void> initialize() async {
     // Request permissions
@@ -97,6 +99,28 @@ class NotificationService {
         enableVibration: true,
         enableLights: true,
         ledColor: Color.fromARGB(255, 204, 0, 0),
+      ),
+    );
+
+    // Milestone channel — conquest achievements
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _milestoneChannelId,
+        'Milestones',
+        description: 'Conquest milestone achievements',
+        importance: Importance.high,
+        playSound: true,
+      ),
+    );
+
+    // Streak channel — daily streak reminders
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _streakChannelId,
+        'Streak Reminders',
+        description: 'Daily exploration streak reminders',
+        importance: Importance.defaultImportance,
+        playSound: true,
       ),
     );
   }
@@ -194,6 +218,72 @@ class NotificationService {
       'timestamp': FieldValue.serverTimestamp(),
       'resolvedAt': null,
     });
+  }
+
+  /// Show a local notification when the user hits a cell-count milestone.
+  static Future<void> showMilestone(int cellCount) async {
+    final (String title, String body) = switch (cellCount) {
+      100   => ('100 Cells Unlocked! 🎉',   'Your first 100 hexes claimed. The conquest begins!'),
+      500   => ('500 Cells! ⚜️',             'Half a thousand hexes — you\'re on a roll!'),
+      1000  => ('1,000 Cells! 🇫🇷',          'A thousand pieces of France are yours.'),
+      5000  => ('5,000 Cells! 👑',           'True conqueror. 5,000 hexes unlocked!'),
+      10000 => ('10,000 Cells! 🏆',          'Legendary. 10,000 pieces of France conquered!'),
+      _     => return,
+    };
+
+    await _localNotifications.show(
+      cellCount,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _milestoneChannelId,
+          'Milestones',
+          channelDescription: 'Conquest milestone achievements',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+    );
+  }
+
+  /// Show a local notification when the user reaches a streak milestone.
+  static Future<void> showStreakMilestone(int streakDays) async {
+    final (String title, String body) = switch (streakDays) {
+      3  => ('3-Day Streak! 🔥',   '3 days exploring in a row. Keep it going!'),
+      7  => ('One Week Streak! 🔥🔥', '7 days straight. You\'re unstoppable!'),
+      14 => ('Two Weeks! 🔥🔥🔥',  'A fortnight of daily exploration. Incredible!'),
+      30 => ('30-Day Streak! 👑',   'A full month without missing a day. Legendary!'),
+      _  => return,
+    };
+
+    await _localNotifications.show(
+      // Use negative IDs to avoid collision with cell milestones
+      -streakDays,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _streakChannelId,
+          'Streak Reminders',
+          channelDescription: 'Daily exploration streak reminders',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          playSound: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: true,
+        ),
+      ),
+    );
   }
 
   /// Resolve an alert (mark as handled)

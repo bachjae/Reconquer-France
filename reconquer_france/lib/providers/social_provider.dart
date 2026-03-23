@@ -214,7 +214,7 @@ class SocialActions {
       'name': name,
       'createdBy': uid,
       'memberIds': [uid],
-      'roles': {uid: 'leader'}, // Creator is always a leader
+      'roles': {uid: 'student'}, // Creator starts as student — can assign themselves as leader
       'tripId': tripId,
       'inviteCode': inviteCode,
       'createdAt': FieldValue.serverTimestamp(),

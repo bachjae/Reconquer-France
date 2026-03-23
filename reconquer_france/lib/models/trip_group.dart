@@ -23,9 +23,10 @@ class TripGroup {
     required this.createdAt,
   });
 
-  /// Role of a specific member. Creator always treated as leader.
+  /// Role of a specific member for alert purposes.
+  /// The creator has admin rights (can assign roles) but their own role
+  /// is stored in the roles map — they can be a student.
   GroupMemberRole roleOf(String uid) {
-    if (uid == createdBy) return GroupMemberRole.leader;
     return roles[uid] == 'leader'
         ? GroupMemberRole.leader
         : GroupMemberRole.student;

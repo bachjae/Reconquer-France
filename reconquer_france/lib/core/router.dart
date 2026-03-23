@@ -16,6 +16,7 @@ import '../screens/trip_setup/trip_setup_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/badges/badges_screen.dart';
 import '../screens/offline/offline_tiles_screen.dart';
+import '../screens/map/route_planner_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -104,6 +105,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/offline-tiles',
         builder: (context, state) => const OfflineTilesScreen(),
+      ),
+      GoRoute(
+        path: '/route-planner',
+        builder: (context, state) => const RoutePlannerScreen(),
       ),
     ],
   );
