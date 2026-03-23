@@ -222,13 +222,15 @@ class NotificationService {
 
   /// Show a local notification when the user hits a cell-count milestone.
   static Future<void> showMilestone(int cellCount) async {
+    const _milestoneValues = {100, 500, 1000, 5000, 10000};
+    if (!_milestoneValues.contains(cellCount)) return;
+
     final (String title, String body) = switch (cellCount) {
-      100   => ('100 Cells Unlocked! 🎉',   'Your first 100 hexes claimed. The conquest begins!'),
-      500   => ('500 Cells! ⚜️',             'Half a thousand hexes — you\'re on a roll!'),
-      1000  => ('1,000 Cells! 🇫🇷',          'A thousand pieces of France are yours.'),
-      5000  => ('5,000 Cells! 👑',           'True conqueror. 5,000 hexes unlocked!'),
-      10000 => ('10,000 Cells! 🏆',          'Legendary. 10,000 pieces of France conquered!'),
-      _     => return,
+      100  => ('100 Cells Unlocked! 🎉',  'Your first 100 hexes claimed. The conquest begins!'),
+      500  => ('500 Cells! ⚜️',           'Half a thousand hexes — you\'re on a roll!'),
+      1000 => ('1,000 Cells! 🇫🇷',        'A thousand pieces of France are yours.'),
+      5000 => ('5,000 Cells! 👑',         'True conqueror. 5,000 hexes unlocked!'),
+      _    => ('10,000 Cells! 🏆',        'Legendary. 10,000 pieces of France conquered!'),
     };
 
     await _localNotifications.show(
@@ -255,12 +257,14 @@ class NotificationService {
 
   /// Show a local notification when the user reaches a streak milestone.
   static Future<void> showStreakMilestone(int streakDays) async {
+    const _streakValues = {3, 7, 14, 30};
+    if (!_streakValues.contains(streakDays)) return;
+
     final (String title, String body) = switch (streakDays) {
-      3  => ('3-Day Streak! 🔥',   '3 days exploring in a row. Keep it going!'),
-      7  => ('One Week Streak! 🔥🔥', '7 days straight. You\'re unstoppable!'),
-      14 => ('Two Weeks! 🔥🔥🔥',  'A fortnight of daily exploration. Incredible!'),
-      30 => ('30-Day Streak! 👑',   'A full month without missing a day. Legendary!'),
-      _  => return,
+      3  => ('3-Day Streak! 🔥',       '3 days exploring in a row. Keep it going!'),
+      7  => ('One Week Streak! 🔥🔥',  '7 days straight. You\'re unstoppable!'),
+      14 => ('Two Weeks! 🔥🔥🔥',      'A fortnight of daily exploration. Incredible!'),
+      _  => ('30-Day Streak! 👑',      'A full month without missing a day. Legendary!'),
     };
 
     await _localNotifications.show(

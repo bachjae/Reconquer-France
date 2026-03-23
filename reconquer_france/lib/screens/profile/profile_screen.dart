@@ -411,19 +411,83 @@ class _SettingsSection extends StatelessWidget {
           icon: Icons.notifications_outlined,
           title: 'Notifications',
           subtitle: 'Corn & Husker alerts',
-          onTap: () {},
+          onTap: () => showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF12121A),
+              title: const Text('Notifications'),
+              content: const Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('You receive notifications for:',
+                      style: TextStyle(color: Colors.white70)),
+                  SizedBox(height: 12),
+                  Text('🌽  Corn alerts from group leaders',
+                      style: TextStyle(color: Colors.white70)),
+                  SizedBox(height: 6),
+                  Text('🚨  HUSKER emergency alerts',
+                      style: TextStyle(color: Colors.white70)),
+                  SizedBox(height: 6),
+                  Text('🎉  Cell milestones (100 / 500 / 1,000)',
+                      style: TextStyle(color: Colors.white70)),
+                  SizedBox(height: 6),
+                  Text('🔥  Streak milestones (3 / 7 / 14 / 30 days)',
+                      style: TextStyle(color: Colors.white70)),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          ),
         ),
         _SettingsTile(
           icon: Icons.privacy_tip_outlined,
           title: 'Privacy',
           subtitle: 'Location sharing settings',
-          onTap: () {},
+          onTap: () => showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF12121A),
+              title: const Text('Privacy'),
+              content: const Text(
+                'Your location is only shared with your group '
+                'members when you send a Corn or Husker alert.\n\n'
+                'All other location data stays on your device.',
+                style: TextStyle(color: Colors.white70, height: 1.5),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Got it'),
+                ),
+              ],
+            ),
+          ),
         ),
         _SettingsTile(
           icon: Icons.info_outlined,
           title: 'About',
           subtitle: 'Reconquer France v1.0',
-          onTap: () {},
+          onTap: () => showAboutDialog(
+            context: context,
+            applicationName: 'Reconquer France',
+            applicationVersion: '1.0.0',
+            applicationLegalese:
+                '© 2026 Reconquer France\nMap tiles © OpenStreetMap contributors, © CARTO',
+            children: const [
+              SizedBox(height: 16),
+              Text(
+                'Geo-gamified travel app for exploring France '
+                'one hex at a time.',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
         ),
       ],
     );
