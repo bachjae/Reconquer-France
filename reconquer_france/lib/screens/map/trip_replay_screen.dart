@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' hide LatLng;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../core/constants.dart';
 import '../../services/sync_service.dart';
 import '../../services/hex_grid_service.dart';
+import '../../services/offline_tile_service.dart';
 
 class TripReplayScreen extends StatefulWidget {
   const TripReplayScreen({super.key});
@@ -15,35 +16,32 @@ class TripReplayScreen extends StatefulWidget {
 
 class _TripReplayScreenState extends State<TripReplayScreen>
     with TickerProviderStateMixin {
-  MapboxMap? _mapboxMap;
+  final MapController _mapController = MapController();
   bool _mapReady = false;
 
-  // Replay state
+  // Sorted list of (hexId, unlockTime)
   late List<MapEntry<String, DateTime>> _timedCells;
   int _replayIndex = 0;
   bool _isPlaying = false;
   bool _isFinished = false;
   Timer? _replayTimer;
-  late AnimationController _pulseController;
 
-  // Speed multiplier (cells per second)
   double _speedMultiplier = 5.0;
 
-  static const _replaySourceId = 'replay-source';
-  static const _replayLayerId = 'replay-layer';
-  static const _trailLayerId = 'replay-trail-layer';
+  // Camera animation
+  late AnimationController _animController;
 
   final Set<String> _revealedCells = {};
+  List<Polygon> _polygons = [];
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
+    _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 350),
+    );
 
-    // Load timestamps sorted by unlock time
     final timestamps = SyncService.getUnlockTimestamps();
     _timedCells = timestamps.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
@@ -52,32 +50,38 @@ class _TripReplayScreenState extends State<TripReplayScreen>
   @override
   void dispose() {
     _replayTimer?.cancel();
-    _pulseController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
-  void _onMapCreated(MapboxMap map) {
-    _mapboxMap = map;
-    setState(() => _mapReady = true);
-    _setupLayers();
-  }
+  void _animateTo(LatLng dest, double zoom) {
+    final startCenter = _mapController.camera.center;
+    final startZoom = _mapController.camera.zoom;
+    final latTween =
+        Tween<double>(begin: startCenter.latitude, end: dest.latitude);
+    final lngTween =
+        Tween<double>(begin: startCenter.longitude, end: dest.longitude);
+    final zoomTween = Tween<double>(begin: startZoom, end: zoom);
+    final curve =
+        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
 
-  Future<void> _setupLayers() async {
-    if (_mapboxMap == null) return;
+    void listener() {
+      _mapController.move(
+        LatLng(latTween.evaluate(curve), lngTween.evaluate(curve)),
+        zoomTween.evaluate(curve),
+      );
+    }
 
-    await _mapboxMap!.style.addSource(GeoJsonSource(
-      id: _replaySourceId,
-      data: '{"type":"FeatureCollection","features":[]}',
-    ));
-
-    // Trail layer (all previously visited cells, semi-transparent)
-    await _mapboxMap!.style.addLayer(FillLayer(
-      id: _trailLayerId,
-      sourceId: _replaySourceId,
-      fillColor: kColorUnlockedHex,
-      fillOpacity: 0.5,
-      fillOutlineColor: kColorAccent,
-    ));
+    _animController
+      ..reset()
+      ..addListener(listener)
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed ||
+            s == AnimationStatus.dismissed) {
+          _animController.removeListener(listener);
+        }
+      })
+      ..forward();
   }
 
   void _startReplay() {
@@ -88,7 +92,7 @@ class _TripReplayScreenState extends State<TripReplayScreen>
       if (_replayIndex >= _timedCells.length) {
         _replayIndex = 0;
         _revealedCells.clear();
-        _updateMap();
+        _polygons = [];
       }
     });
     _scheduleNext();
@@ -106,16 +110,14 @@ class _TripReplayScreenState extends State<TripReplayScreen>
       _isFinished = false;
       _replayIndex = 0;
       _revealedCells.clear();
+      _polygons = [];
     });
-    _updateMap();
-    _mapboxMap?.flyTo(
-      CameraOptions(
-        center: Point(
-            coordinates: Position(kFranceCenterLng, kFranceCenterLat)),
-        zoom: kInitialZoom,
-      ),
-      MapAnimationOptions(duration: 800),
-    );
+    if (_mapReady) {
+      _mapController.move(
+        const LatLng(kFranceCenterLat, kFranceCenterLng),
+        kInitialZoom,
+      );
+    }
   }
 
   void _scheduleNext() {
@@ -126,8 +128,6 @@ class _TripReplayScreenState extends State<TripReplayScreen>
       });
       return;
     }
-
-    // Interval between cells based on speed
     final intervalMs = (1000.0 / _speedMultiplier).round();
     _replayTimer = Timer(Duration(milliseconds: intervalMs), _revealNextCell);
   }
@@ -143,47 +143,52 @@ class _TripReplayScreenState extends State<TripReplayScreen>
 
     final hexId = _timedCells[_replayIndex].key;
     _revealedCells.add(hexId);
-    setState(() => _replayIndex++);
-    _updateMap();
+    _replayIndex++;
 
-    // Pan camera to newly revealed cell
+    // Rebuild polygon list incrementally
+    final corners = HexGridService.hexCorners(hexId)
+        .map((p) => LatLng(p.latitude, p.longitude))
+        .toList();
+    _polygons.add(Polygon(
+      points: corners,
+      color: const Color(kColorUnlockedHex).withOpacity(0.75),
+      borderColor: const Color(kColorAccent),
+      borderStrokeWidth: 0.8,
+      isFilled: true,
+    ));
+
+    setState(() {});
+
+    // Pan to revealed cell
     final center = HexGridService.hexIdToCenter(hexId);
-    _mapboxMap?.easeTo(
-      CameraOptions(
-        center: Point(
-            coordinates: Position(center.longitude, center.latitude)),
-        zoom: 11,
-      ),
-      MapAnimationOptions(duration: 300),
-    );
+    if (_mapReady) {
+      _animateTo(LatLng(center.latitude, center.longitude), 11);
+    }
 
     if (_isPlaying) _scheduleNext();
   }
 
-  Future<void> _updateMap() async {
-    if (_mapboxMap == null) return;
-
-    final features = _revealedCells.map((hexId) {
-      final corners = HexGridService.hexCornersToGeoJson(hexId);
-      return {
-        'type': 'Feature',
-        'properties': {},
-        'geometry': {
-          'type': 'Polygon',
-          'coordinates': [corners],
-        },
-      };
-    }).toList();
-
-    final geoJson = jsonEncode({
-      'type': 'FeatureCollection',
-      'features': features,
+  void _skipToEnd() {
+    _replayTimer?.cancel();
+    for (int i = _replayIndex; i < _timedCells.length; i++) {
+      final hexId = _timedCells[i].key;
+      _revealedCells.add(hexId);
+      final corners = HexGridService.hexCorners(hexId)
+          .map((p) => LatLng(p.latitude, p.longitude))
+          .toList();
+      _polygons.add(Polygon(
+        points: corners,
+        color: const Color(kColorUnlockedHex).withOpacity(0.75),
+        borderColor: const Color(kColorAccent),
+        borderStrokeWidth: 0.8,
+        isFilled: true,
+      ));
+    }
+    setState(() {
+      _replayIndex = _timedCells.length;
+      _isPlaying = false;
+      _isFinished = true;
     });
-
-    try {
-      await _mapboxMap!.style
-          .setStyleSourceProperty(_replaySourceId, 'data', geoJson);
-    } catch (_) {}
   }
 
   @override
@@ -206,23 +211,36 @@ class _TripReplayScreenState extends State<TripReplayScreen>
       ),
       body: Column(
         children: [
-          // Map
+          // ── Map ─────────────────────────────────────────────────────────
           Expanded(
             child: Stack(
               children: [
-                MapWidget(
-                  key: const ValueKey('replay-map'),
-                  styleUri: kMapboxDarkStyle,
-                  cameraOptions: CameraOptions(
-                    center: Point(
-                        coordinates:
-                            Position(kFranceCenterLng, kFranceCenterLat)),
-                    zoom: kInitialZoom,
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: const LatLng(
+                        kFranceCenterLat, kFranceCenterLng),
+                    initialZoom: kInitialZoom,
+                    onMapReady: () => setState(() => _mapReady = true),
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                    ),
                   ),
-                  onMapCreated: _onMapCreated,
+                  children: [
+                    TileLayer(
+                      urlTemplate: kTileUrlTemplate,
+                      subdomains: kTileSubdomains,
+                      userAgentPackageName: 'com.reconquer.france',
+                      tileProvider: OfflineTileService.tileProvider,
+                    ),
+                    PolygonLayer(
+                      polygons: _polygons,
+                      polygonCulling: true,
+                    ),
+                  ],
                 ),
 
-                // Cell counter overlay
+                // Cell counter
                 Positioned(
                   top: 16,
                   left: 0,
@@ -235,7 +253,8 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                         color: Colors.black.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: const Color(kColorAccent).withOpacity(0.5)),
+                            color:
+                                const Color(kColorAccent).withOpacity(0.5)),
                       ),
                       child: Text(
                         '${_revealedCells.length} / ${_timedCells.length} cells',
@@ -271,12 +290,14 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                             style: Theme.of(context)
                                 .textTheme
                                 .headlineSmall
-                                ?.copyWith(color: const Color(kColorAccent)),
+                                ?.copyWith(
+                                    color: const Color(kColorAccent)),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             '${_timedCells.length} cells unlocked',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style:
+                                Theme.of(context).textTheme.bodyMedium,
                           ),
                         ],
                       ),
@@ -286,7 +307,7 @@ class _TripReplayScreenState extends State<TripReplayScreen>
             ),
           ),
 
-          // Controls panel
+          // ── Controls panel ───────────────────────────────────────────────
           Container(
             color: const Color(0xFF0F0F1A),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -296,10 +317,11 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                 LinearProgressIndicator(
                   value: progress,
                   backgroundColor: const Color(0xFF2A2A4E),
-                  valueColor: const AlwaysStoppedAnimation(Color(kColorAccent)),
+                  valueColor: const AlwaysStoppedAnimation(
+                      Color(kColorAccent)),
                   minHeight: 4,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
                 // Speed slider
                 Row(
@@ -311,8 +333,8 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                       child: Slider(
                         value: _speedMultiplier,
                         min: 1.0,
-                        max: 30.0,
-                        divisions: 29,
+                        max: 50.0,
+                        divisions: 49,
                         activeColor: const Color(kColorAccent),
                         inactiveColor: const Color(0xFF2A2A4E),
                         onChanged: (v) =>
@@ -333,7 +355,6 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Reset
                     IconButton(
                       onPressed: _resetReplay,
                       icon: const Icon(Icons.skip_previous_rounded),
@@ -341,8 +362,6 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                       iconSize: 32,
                     ),
                     const SizedBox(width: 16),
-
-                    // Play/Pause
                     GestureDetector(
                       onTap: _timedCells.isEmpty
                           ? null
@@ -366,21 +385,8 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                       ),
                     ),
                     const SizedBox(width: 16),
-
-                    // Skip to end
                     IconButton(
-                      onPressed: () {
-                        _replayTimer?.cancel();
-                        _revealedCells.clear();
-                        _revealedCells
-                            .addAll(_timedCells.map((e) => e.key));
-                        setState(() {
-                          _replayIndex = _timedCells.length;
-                          _isPlaying = false;
-                          _isFinished = true;
-                        });
-                        _updateMap();
-                      },
+                      onPressed: _skipToEnd,
                       icon: const Icon(Icons.skip_next_rounded),
                       color: Colors.white70,
                       iconSize: 32,

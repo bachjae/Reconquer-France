@@ -30,12 +30,12 @@ class _OfflineTilesScreenState extends State<OfflineTilesScreen> {
     });
 
     await OfflineTileService.downloadFrance(
-      onProgress: (progress) {
+      onProgress: (progress, downloaded, total) {
         if (mounted) {
           setState(() {
             _progress = progress;
-            _statusMessage =
-                'Downloading tiles... ${(progress * 100).toInt()}%';
+            _statusMessage = 'Downloading... $downloaded / $total tiles '
+                '(${(progress * 100).toInt()}%)';
           });
         }
       },
@@ -152,12 +152,31 @@ class _OfflineTilesScreenState extends State<OfflineTilesScreen> {
 
             // Progress bar (while downloading)
             if (_isDownloading) ...[
-              Text(
-                _statusMessage,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: const Color(kColorAccent)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _statusMessage,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: const Color(kColorAccent)),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      await OfflineTileService.cancelDownload();
+                      if (mounted) {
+                        setState(() {
+                          _isDownloading = false;
+                          _statusMessage = 'Download cancelled';
+                        });
+                      }
+                    },
+                    child: const Text('Cancel',
+                        style: TextStyle(color: Colors.white54)),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               LinearProgressIndicator(

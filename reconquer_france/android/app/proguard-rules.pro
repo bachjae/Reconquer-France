@@ -15,9 +15,6 @@
 -keep class com.transistorsoft.** { *; }
 -dontwarn com.transistorsoft.**
 
-## Mapbox
--keep class com.mapbox.** { *; }
--dontwarn com.mapbox.**
 
 ## Hive
 -keep class com.hive.** { *; }

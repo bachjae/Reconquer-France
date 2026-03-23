@@ -1,15 +1,15 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' hide LatLng;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/hex_grid_service.dart';
+import '../../services/offline_tile_service.dart';
 import '../../widgets/emergency_fab.dart';
 import '../../widgets/progress_badge.dart';
 import '../../widgets/streak_badge.dart';
@@ -24,29 +24,35 @@ class MapScreen extends ConsumerStatefulWidget {
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends ConsumerState<MapScreen> {
-  MapboxMap? _mapboxMap;
+class _MapScreenState extends ConsumerState<MapScreen>
+    with TickerProviderStateMixin {
+  final MapController _mapController = MapController();
   bool _mapReady = false;
-  String? _selectedHexId;
   StreamSubscription<String>? _cellUnlockSub;
   Timer? _viewportDebounce;
+
+  // Camera animation
+  late AnimationController _animController;
 
   // Heatmap toggle
   bool _heatmapEnabled = false;
 
-  // GeoJSON source IDs
-  static const _lockedLayerId = 'locked-hexes';
-  static const _unlockedLayerId = 'unlocked-hexes';
-  static const _unlockedSourceId = 'unlocked-hex-source';
-  static const _lockedSourceId = 'locked-hex-source';
-  static const _heatmapLayerId = 'heatmap-layer';
-  static const _heatmapSourceId = 'heatmap-source';
+  // Cached polygon lists (rebuilt on camera move)
+  List<Polygon> _lockedPolygons = [];
+  List<Polygon> _unlockedPolygons = [];
+
+  // Heatmap circles
+  List<CircleMarker> _heatmapCircles = [];
 
   @override
   void initState() {
     super.initState();
-    _cellUnlockSub = LocationService.onCellUnlocked.listen((hexId) {
-      if (_mapReady) _updateHexLayer();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _cellUnlockSub = LocationService.onCellUnlocked.listen((_) {
+      if (_mapReady) _rebuildViewportHexes();
     });
   }
 
@@ -54,274 +60,135 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void dispose() {
     _cellUnlockSub?.cancel();
     _viewportDebounce?.cancel();
+    _animController.dispose();
     super.dispose();
   }
 
-  void _onMapCreated(MapboxMap map) {
-    _mapboxMap = map;
-    setState(() => _mapReady = true);
-    _setupMapLayers();
-    _centerOnFrance();
-  }
+  // ── Camera animation ────────────────────────────────────────────────────────
 
-  Future<void> _centerOnFrance() async {
-    await _mapboxMap?.flyTo(
-      CameraOptions(
-        center: Point(
-            coordinates: Position(kFranceCenterLng, kFranceCenterLat)),
-        zoom: kInitialZoom,
-      ),
-      MapAnimationOptions(duration: 1500),
-    );
-  }
+  void _animateTo(LatLng dest, double zoom) {
+    final startCenter = _mapController.camera.center;
+    final startZoom = _mapController.camera.zoom;
 
-  Future<void> _setupMapLayers() async {
-    if (_mapboxMap == null) return;
+    final latTween =
+        Tween<double>(begin: startCenter.latitude, end: dest.latitude);
+    final lngTween =
+        Tween<double>(begin: startCenter.longitude, end: dest.longitude);
+    final zoomTween = Tween<double>(begin: startZoom, end: zoom);
+    final curve =
+        CurvedAnimation(parent: _animController, curve: Curves.easeInOut);
 
-    // Add locked hex source (empty initially, populated on viewport change)
-    await _mapboxMap!.style.addSource(GeoJsonSource(
-      id: _lockedSourceId,
-      data: '{"type":"FeatureCollection","features":[]}',
-    ));
-
-    // Add unlocked hex source
-    await _mapboxMap!.style.addSource(GeoJsonSource(
-      id: _unlockedSourceId,
-      data: '{"type":"FeatureCollection","features":[]}',
-    ));
-
-    // Locked hex fill layer
-    await _mapboxMap!.style.addLayer(FillLayer(
-      id: _lockedLayerId,
-      sourceId: _lockedSourceId,
-      fillColor: kColorLockedHex,
-      fillOpacity: 0.85,
-      fillOutlineColor: kColorLockedHexBorder,
-    ));
-
-    // Unlocked hex fill layer (glowing green)
-    await _mapboxMap!.style.addLayer(FillLayer(
-      id: _unlockedLayerId,
-      sourceId: _unlockedSourceId,
-      fillColor: kColorUnlockedHex,
-      fillOpacity: 0.8,
-      fillOutlineColor: kColorAccent,
-    ));
-
-    // Heatmap source (point-based unlocked cell centers)
-    await _mapboxMap!.style.addSource(GeoJsonSource(
-      id: _heatmapSourceId,
-      data: '{"type":"FeatureCollection","features":[]}',
-    ));
-
-    // Heatmap layer (hidden by default)
-    await _mapboxMap!.style.addLayer(HeatmapLayer(
-      id: _heatmapLayerId,
-      sourceId: _heatmapSourceId,
-      heatmapRadius: 12.0,
-      heatmapOpacity: 0.0, // hidden until toggled
-    ));
-
-    // Initial viewport load
-    await _updateViewportHexes();
-  }
-
-  Future<void> _updateViewportHexes() async {
-    if (_mapboxMap == null) return;
-
-    try {
-      final camera = await _mapboxMap!.getCameraState();
-      final zoom = camera.zoom;
-
-      // Only show hex grid at appropriate zoom levels
-      if (zoom < 8) {
-        await _clearHexLayers();
-        return;
-      }
-
-      final bounds = await _mapboxMap!.coordinateBoundsForCamera(
-        CameraOptions(
-          center: camera.center,
-          zoom: zoom,
-          bearing: camera.bearing,
-          pitch: camera.pitch,
-        ),
+    void listener() {
+      _mapController.move(
+        LatLng(latTween.evaluate(curve), lngTween.evaluate(curve)),
+        zoomTween.evaluate(curve),
       );
-
-      final north =
-          bounds.northeast.coordinates.lat.toDouble();
-      final south =
-          bounds.southwest.coordinates.lat.toDouble();
-      final east =
-          bounds.northeast.coordinates.lng.toDouble();
-      final west =
-          bounds.southwest.coordinates.lng.toDouble();
-
-      // Clamp to France bounds
-      final clampedNorth =
-          north.clamp(FRANCE_SOUTH, FRANCE_NORTH).toDouble();
-      final clampedSouth =
-          south.clamp(FRANCE_SOUTH, FRANCE_NORTH).toDouble();
-      final clampedEast =
-          east.clamp(FRANCE_WEST, FRANCE_EAST).toDouble();
-      final clampedWest =
-          west.clamp(FRANCE_WEST, FRANCE_EAST).toDouble();
-
-      if (clampedNorth <= clampedSouth || clampedEast <= clampedWest) return;
-
-      final allHexIds = HexGridService.getHexIdsInBounds(
-        northLat: clampedNorth,
-        southLat: clampedSouth,
-        westLng: clampedWest,
-        eastLng: clampedEast,
-        paddingDeg: kViewportPaddingDeg,
-      );
-
-      // Limit to max visible hexes for performance
-      final limitedHexIds = allHexIds.take(kMaxVisibleHexes).toList();
-
-      final unlockedCells = ref.read(unlockedCellsProvider);
-
-      final lockedFeatures = <Map<String, dynamic>>[];
-      final unlockedFeatures = <Map<String, dynamic>>[];
-
-      for (final hexId in limitedHexIds) {
-        final corners = HexGridService.hexCornersToGeoJson(hexId);
-        final feature = {
-          'type': 'Feature',
-          'id': hexId,
-          'properties': {'hexId': hexId},
-          'geometry': {
-            'type': 'Polygon',
-            'coordinates': [corners],
-          },
-        };
-
-        if (unlockedCells.contains(hexId)) {
-          unlockedFeatures.add(feature);
-        } else {
-          lockedFeatures.add(feature);
-        }
-      }
-
-      final lockedGeoJson = jsonEncode({
-        'type': 'FeatureCollection',
-        'features': lockedFeatures,
-      });
-      final unlockedGeoJson = jsonEncode({
-        'type': 'FeatureCollection',
-        'features': unlockedFeatures,
-      });
-
-      // Update sources
-      await _mapboxMap!.style
-          .setStyleSourceProperty(_lockedSourceId, 'data', lockedGeoJson);
-      await _mapboxMap!.style
-          .setStyleSourceProperty(_unlockedSourceId, 'data', unlockedGeoJson);
-    } catch (_) {
-      // Map may not be ready
     }
+
+    _animController
+      ..reset()
+      ..addListener(listener)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed ||
+            status == AnimationStatus.dismissed) {
+          _animController.removeListener(listener);
+        }
+      })
+      ..forward();
   }
 
-  Future<void> _updateHexLayer() async {
-    await _updateViewportHexes();
-    if (_heatmapEnabled) await _updateHeatmap();
+  // ── Viewport hex building ───────────────────────────────────────────────────
+
+  void _onPositionChanged(MapCamera camera, bool hasGesture) {
+    _viewportDebounce?.cancel();
+    _viewportDebounce =
+        Timer(const Duration(milliseconds: 400), _rebuildViewportHexes);
   }
 
-  Future<void> _updateHeatmap() async {
-    if (_mapboxMap == null) return;
+  void _rebuildViewportHexes() {
+    if (!_mapReady) return;
+    final camera = _mapController.camera;
+    final zoom = camera.zoom;
+
+    if (zoom < 8.0) {
+      setState(() {
+        _lockedPolygons = [];
+        _unlockedPolygons = [];
+        _heatmapCircles = [];
+      });
+      return;
+    }
+
+    final bounds = camera.visibleBounds;
     final unlockedCells = ref.read(unlockedCellsProvider);
 
-    // Use a sample of cells (max 2000) for heatmap performance
-    final sample = unlockedCells.take(2000);
-    final features = sample.map((hexId) {
-      final center = HexGridService.hexIdToCenter(hexId);
-      return {
-        'type': 'Feature',
-        'properties': {},
-        'geometry': {
-          'type': 'Point',
-          'coordinates': [center.longitude, center.latitude],
-        },
-      };
-    }).toList();
+    final hexIds = HexGridService.getHexIdsInBounds(
+      northLat: bounds.north.clamp(FRANCE_SOUTH, FRANCE_NORTH),
+      southLat: bounds.south.clamp(FRANCE_SOUTH, FRANCE_NORTH),
+      westLng: bounds.west.clamp(FRANCE_WEST, FRANCE_EAST),
+      eastLng: bounds.east.clamp(FRANCE_WEST, FRANCE_EAST),
+      paddingDeg: kViewportPaddingDeg,
+    ).take(kMaxVisibleHexes);
 
-    final geoJson = jsonEncode({
-      'type': 'FeatureCollection',
-      'features': features,
-    });
+    final locked = <Polygon>[];
+    final unlocked = <Polygon>[];
 
-    try {
-      await _mapboxMap!.style
-          .setStyleSourceProperty(_heatmapSourceId, 'data', geoJson);
-    } catch (_) {}
-  }
+    for (final hexId in hexIds) {
+      final corners = HexGridService.hexCorners(hexId)
+          .map((p) => LatLng(p.latitude, p.longitude))
+          .toList();
 
-  Future<void> _toggleHeatmap() async {
-    setState(() => _heatmapEnabled = !_heatmapEnabled);
-    if (_mapboxMap == null) return;
-
-    if (_heatmapEnabled) {
-      await _updateHeatmap();
-      // Show heatmap, hide hex polygons
-      try {
-        await _mapboxMap!.style
-            .setStyleLayerProperty(_heatmapLayerId, 'heatmap-opacity', 0.75);
-        await _mapboxMap!.style
-            .setStyleLayerProperty(_lockedLayerId, 'fill-opacity', 0.0);
-        await _mapboxMap!.style
-            .setStyleLayerProperty(_unlockedLayerId, 'fill-opacity', 0.0);
-      } catch (_) {}
-    } else {
-      // Hide heatmap, restore hex polygons
-      try {
-        await _mapboxMap!.style
-            .setStyleLayerProperty(_heatmapLayerId, 'heatmap-opacity', 0.0);
-        await _mapboxMap!.style
-            .setStyleLayerProperty(_lockedLayerId, 'fill-opacity', 0.85);
-        await _mapboxMap!.style
-            .setStyleLayerProperty(_unlockedLayerId, 'fill-opacity', 0.8);
-      } catch (_) {}
+      if (unlockedCells.contains(hexId)) {
+        unlocked.add(Polygon(
+          points: corners,
+          color: const Color(kColorUnlockedHex).withOpacity(0.80),
+          borderColor: const Color(kColorAccent),
+          borderStrokeWidth: 0.8,
+          isFilled: true,
+        ));
+      } else {
+        locked.add(Polygon(
+          points: corners,
+          color: const Color(kColorLockedHex).withOpacity(0.85),
+          borderColor: const Color(kColorLockedHexBorder),
+          borderStrokeWidth: 0.4,
+          isFilled: true,
+        ));
+      }
     }
+
+    // Heatmap circles (sampled from all unlocked cells, not just viewport)
+    List<CircleMarker> circles = [];
+    if (_heatmapEnabled) {
+      circles = unlockedCells.take(2000).map((hexId) {
+        final center = HexGridService.hexIdToCenter(hexId);
+        return CircleMarker(
+          point: LatLng(center.latitude, center.longitude),
+          radius: 14,
+          color: Colors.deepOrange.withOpacity(0.12),
+          borderColor: Colors.transparent,
+          borderStrokeWidth: 0,
+          useRadiusInMeter: false,
+        );
+      }).toList();
+    }
+
+    setState(() {
+      _lockedPolygons = locked;
+      _unlockedPolygons = unlocked;
+      _heatmapCircles = circles;
+    });
   }
 
-  Future<void> _clearHexLayers() async {
-    try {
-      await _mapboxMap!.style.setStyleSourceProperty(
-          _lockedSourceId, 'data',
-          '{"type":"FeatureCollection","features":[]}');
-      await _mapboxMap!.style.setStyleSourceProperty(
-          _unlockedSourceId, 'data',
-          '{"type":"FeatureCollection","features":[]}');
-    } catch (_) {}
-  }
+  // ── Map tap ─────────────────────────────────────────────────────────────────
 
-  void _onMapTap(MapContentGestureContext ctx) {
-    final point = ctx.point;
-    final lat = point.coordinates.lat.toDouble();
-    final lng = point.coordinates.lng.toDouble();
+  void _onMapTap(TapPosition _, LatLng point) {
+    if (!HexGridService.isInFrance(point.latitude, point.longitude)) return;
 
-    if (!HexGridService.isInFrance(lat, lng)) return;
-
-    final hexId = HexGridService.latLngToHexId(lat, lng);
-    setState(() => _selectedHexId = hexId);
-
-    // Animate camera to hex center
+    final hexId = HexGridService.latLngToHexId(point.latitude, point.longitude);
     final center = HexGridService.hexIdToCenter(hexId);
-    _mapboxMap?.flyTo(
-      CameraOptions(
-        center: Point(
-            coordinates: Position(center.longitude, center.latitude)),
-        zoom: 14,
-      ),
-      MapAnimationOptions(duration: 500),
-    );
+    _animateTo(LatLng(center.latitude, center.longitude), 14);
 
-    // Show bottom sheet
-    _showHexDetailSheet(hexId);
-  }
-
-  void _showHexDetailSheet(String hexId) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -330,45 +197,90 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  void _onCameraChanged(CameraChangedEventData data) {
-    _viewportDebounce?.cancel();
-    _viewportDebounce = Timer(const Duration(milliseconds: 500), () {
-      _updateViewportHexes();
-    });
+  // ── Heatmap toggle ──────────────────────────────────────────────────────────
+
+  void _toggleHeatmap() {
+    setState(() => _heatmapEnabled = !_heatmapEnabled);
+    _rebuildViewportHexes();
   }
+
+  // ── Build ────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    // Re-render polygons when unlocked cells change
+    ref.listen(unlockedCellsProvider, (_, __) => _rebuildViewportHexes());
     final unlockedCount = ref.watch(unlockedCellsProvider).length;
 
     return Scaffold(
       backgroundColor: const Color(kColorBackground),
       body: Stack(
         children: [
-          // Mapbox Map
-          MapWidget(
-            key: const ValueKey('mapbox-map'),
-            styleUri: kMapboxDarkStyle,
-            cameraOptions: CameraOptions(
-              center: Point(
-                  coordinates:
-                      Position(kFranceCenterLng, kFranceCenterLat)),
-              zoom: kInitialZoom,
+          // ── Flutter Map ──────────────────────────────────────────────────
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter:
+                  const LatLng(kFranceCenterLat, kFranceCenterLng),
+              initialZoom: kInitialZoom,
+              maxZoom: kMaxTileZoom.toDouble(),
+              onMapReady: () => setState(() {
+                _mapReady = true;
+                _rebuildViewportHexes();
+              }),
+              onTap: _onMapTap,
+              onPositionChanged: _onPositionChanged,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
             ),
-            onMapCreated: _onMapCreated,
-            onTapListener: _onMapTap,
-            onCameraChangeListener: _onCameraChanged,
+            children: [
+              // Tile layer — CartoDB Dark Matter (free, no key)
+              TileLayer(
+                urlTemplate: kTileUrlTemplate,
+                subdomains: kTileSubdomains,
+                userAgentPackageName: 'com.reconquer.france',
+                tileProvider: OfflineTileService.tileProvider,
+                maxZoom: kMaxTileZoom.toDouble(),
+              ),
+
+              // Attribution
+              const RichAttributionWidget(
+                alignment: AttributionAlignment.bottomLeft,
+                attributions: [
+                  TextSourceAttribution(kTileAttribution),
+                ],
+              ),
+
+              // Locked hex polygons (fog of war)
+              if (!_heatmapEnabled)
+                PolygonLayer(
+                  polygons: _lockedPolygons,
+                  polygonCulling: true,
+                ),
+
+              // Unlocked hex polygons (conquered territory)
+              if (!_heatmapEnabled)
+                PolygonLayer(
+                  polygons: _unlockedPolygons,
+                  polygonCulling: true,
+                ),
+
+              // Heatmap density view (when toggled on)
+              if (_heatmapEnabled)
+                CircleLayer(circles: _heatmapCircles),
+            ],
           ),
 
-          // Top overlay bar
+          // ── Top overlay bar ──────────────────────────────────────────────
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: _TopBar(),
+            child: _TopBar(mapController: _mapController),
           ),
 
-          // Progress badge
+          // ── Progress badge ───────────────────────────────────────────────
           Positioned(
             top: MediaQuery.of(context).padding.top + 72,
             left: 0,
@@ -378,14 +290,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
           ),
 
-          // Right-side button column
+          // ── Streak badge (top right) ─────────────────────────────────────
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 68,
+            right: 72,
+            child: const StreakBadge(compact: true),
+          ),
+
+          // ── Right-side button column ─────────────────────────────────────
           Positioned(
             bottom: 110,
             right: 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Heatmap toggle
                 _MapIconButton(
                   icon: _heatmapEnabled
                       ? Icons.whatshot
@@ -393,12 +311,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   color: _heatmapEnabled
                       ? Colors.deepOrange
                       : const Color(kColorAccent),
-                  tooltip: _heatmapEnabled ? 'Hide Heatmap' : 'Show Heatmap',
+                  tooltip:
+                      _heatmapEnabled ? 'Hide Heatmap' : 'Show Heatmap',
                   onTap: _toggleHeatmap,
                 ),
                 const SizedBox(height: 8),
-
-                // Trip replay
                 _MapIconButton(
                   icon: Icons.play_circle_outline,
                   tooltip: 'Trip Replay',
@@ -409,8 +326,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-
-                // Collaborative map
                 _MapIconButton(
                   icon: Icons.group_outlined,
                   tooltip: 'Group Map',
@@ -421,23 +336,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-
-                // Location button
                 _MapIconButton(
                   icon: Icons.my_location,
                   tooltip: 'My Location',
                   onTap: () async {
                     final pos = await LocationService.getCurrentPosition();
-                    if (pos != null && _mapboxMap != null) {
-                      await _mapboxMap!.flyTo(
-                        CameraOptions(
-                          center: Point(
-                              coordinates:
-                                  Position(pos.longitude, pos.latitude)),
-                          zoom: 14,
-                        ),
-                        MapAnimationOptions(duration: 800),
-                      );
+                    if (pos != null && mounted) {
+                      _animateTo(
+                          LatLng(pos.latitude, pos.longitude), 14);
                     }
                   },
                 ),
@@ -445,14 +351,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
           ),
 
-          // Streak badge (top-right below header)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 68,
-            right: 16,
-            child: const StreakBadge(compact: true),
-          ),
-
-          // Emergency FAB (Corn + Husker)
+          // ── Emergency FAB (Corn + Husker) ────────────────────────────────
           const Positioned(
             bottom: 110,
             left: 16,
@@ -464,7 +363,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 }
 
+// ── Top bar ────────────────────────────────────────────────────────────────────
+
 class _TopBar extends ConsumerWidget {
+  final MapController mapController;
+  const _TopBar({required this.mapController});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(refreshableProfileProvider);
@@ -484,23 +388,16 @@ class _TopBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Logo
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('⚜️', style: TextStyle(fontSize: 20)),
-              const SizedBox(width: 8),
-              Text(
-                'Reconquer',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: const Color(kColorAccent),
-                      fontFamily: 'PlayfairDisplay',
-                    ),
-              ),
-            ],
+          const Text('⚜️', style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 8),
+          Text(
+            'Reconquer',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: const Color(kColorAccent),
+                  fontFamily: 'PlayfairDisplay',
+                ),
           ),
           const Spacer(),
-          // Profile avatar
           GestureDetector(
             onTap: () => context.go('/profile'),
             child: Container(
@@ -509,7 +406,8 @@ class _TopBar extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A2E),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(kColorAccent), width: 2),
+                border:
+                    Border.all(color: const Color(kColorAccent), width: 2),
               ),
               child: Center(
                 child: Text(
@@ -524,6 +422,8 @@ class _TopBar extends ConsumerWidget {
     );
   }
 }
+
+// ── Map icon button ────────────────────────────────────────────────────────────
 
 class _MapIconButton extends StatelessWidget {
   final IconData icon;

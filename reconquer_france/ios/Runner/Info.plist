@@ -88,14 +88,8 @@
 		<false/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>api.mapbox.com</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-			<key>events.mapbox.com</key>
+			<!-- CartoDB tiles (flutter_map) -->
+			<key>basemaps.cartocdn.com</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<false/>

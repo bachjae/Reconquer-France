@@ -1,12 +1,38 @@
+import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart' as FMTC;
+import 'package:latlong2/latlong2.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import '../core/constants.dart';
 
-/// Manages Mapbox offline tile region downloads for France.
+/// Manages offline tile caching for France using flutter_map_tile_caching (FMTC).
+/// No API key or credit card required — uses free CartoDB Dark Matter tiles.
 class OfflineTileService {
+  static const _storeName = 'reconquer_france_tiles';
   static late Box _box;
 
   static Future<void> init() async {
     _box = await Hive.openBox('offline_tiles');
+    // Ensure the FMTC tile store exists
+    try {
+      final store = FMTC.FMTC.instance(_storeName);
+      final ready = await store.manage.ready;
+      if (!ready) {
+        await store.manage.createAsync();
+      }
+    } catch (_) {
+      // FMTC init failure is non-fatal; online tiles still work
+    }
+  }
+
+  /// Returns a tile provider that serves cached tiles first, falls back online.
+  static FMTC.FMTCTileProvider get tileProvider {
+    return FMTC.FMTC.instance(_storeName).getTileProvider(
+      settings: const FMTC.FMTCTileProviderSettings(
+        behavior: FMTC.CacheBehavior.cacheFirst,
+        cachedValidDuration: Duration(days: 14),
+        maxStoreLength: 0, // unlimited
+      ),
+    );
   }
 
   static bool get isFranceDownloaded =>
@@ -15,57 +41,51 @@ class OfflineTileService {
   static double get downloadProgress =>
       (_box.get('france_progress') as num?)?.toDouble() ?? 0.0;
 
-  /// Initiates a tile region download for metropolitan France.
-  /// [onProgress] receives 0.0–1.0 progress values.
-  /// [onComplete] called when download finishes.
-  /// [onError] called on failure.
+  /// Downloads all France tiles for zoom 0–12 (~280 MB).
   static Future<void> downloadFrance({
-    required void Function(double progress) onProgress,
+    required void Function(double progress, int downloaded, int total)
+        onProgress,
     required void Function() onComplete,
     required void Function(String error) onError,
   }) async {
     try {
-      final tileStore = await TileStore.createDefault();
+      final store = FMTC.FMTC.instance(_storeName);
 
       // France bounding box
-      final franceGeometry = {
-        'type': 'Polygon',
-        'coordinates': [
-          [
-            [-5.2, 41.3],
-            [9.6, 41.3],
-            [9.6, 51.1],
-            [-5.2, 51.1],
-            [-5.2, 41.3],
-          ]
-        ]
-      };
-
-      final loadOptions = TileRegionLoadOptions(
-        geometry: franceGeometry,
-        descriptorsOptions: [
-          TilesetDescriptorOptions(
-            styleURI: 'mapbox://styles/mapbox/dark-v11',
-            minZoom: 0,
-            maxZoom: 12,
-          )
-        ],
-        acceptExpired: true,
-        networkRestriction: NetworkRestriction.none,
+      final region = FMTC.RectangleRegion(
+        LatLngBounds(
+          const LatLng(51.1, 9.6), // NE
+          const LatLng(41.3, -5.2), // SW
+        ),
       );
 
-      await tileStore.loadTileRegion(
-        'france-offline',
-        loadOptions,
-        (progress) {
-          if (progress.requiredResourceCount > 0) {
-            final p = progress.completedResourceCount /
-                progress.requiredResourceCount;
-            onProgress(p.clamp(0.0, 1.0));
-            _box.put('france_progress', p);
-          }
-        },
+      final downloadable = region.toDownloadable(
+        minZoom: 0,
+        maxZoom: 12,
+        options: TileLayer(
+          urlTemplate: kTileUrlTemplate,
+          subdomains: kTileSubdomains,
+        ),
+        parallelThreads: 3,
+        maxBufferLength: 200,
+        skipExistingTiles: true,
+        skipSeaTiles: true,
+        maxReportInterval: const Duration(seconds: 1),
+        instanceData: 'france-download',
       );
+
+      await for (final progress
+          in store.download.startForeground(region: downloadable)) {
+        final p = progress.percentageProgress / 100.0;
+        onProgress(
+          p.clamp(0.0, 1.0),
+          progress.successfulTiles,
+          progress.maxTiles,
+        );
+        await _box.put('france_progress', p);
+        if (progress.isComplete) break;
+      }
+
       await _box.put('france_downloaded', true);
       await _box.put('france_progress', 1.0);
       onComplete();
@@ -74,16 +94,22 @@ class OfflineTileService {
     }
   }
 
-  /// Remove the downloaded France tile region.
-  static Future<void> removeFrance() async {
+  /// Cancel any active download.
+  static Future<void> cancelDownload() async {
     try {
-      final tileStore = await TileStore.createDefault();
-      await tileStore.removeTileRegion('france-offline');
-      await _box.put('france_downloaded', false);
-      await _box.put('france_progress', 0.0);
+      await FMTC.FMTC.instance(_storeName).download.cancel();
     } catch (_) {}
   }
 
-  /// Returns approximate size in MB of a France tile pack (estimate).
+  /// Delete all cached tiles for France and reset download state.
+  static Future<void> removeFrance() async {
+    try {
+      await FMTC.FMTC.instance(_storeName).manage.deleteAsync();
+      await FMTC.FMTC.instance(_storeName).manage.createAsync();
+    } catch (_) {}
+    await _box.put('france_downloaded', false);
+    await _box.put('france_progress', 0.0);
+  }
+
   static String get estimatedSizeMb => '~280 MB';
 }

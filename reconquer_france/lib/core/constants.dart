@@ -59,8 +59,15 @@ const List<String> kAvatarEmojis = [
   '⚜️', '🎭', '🚀', '🌊', '🦁', '🌙', '⭐', '🎨',
 ];
 
-// ─── Mapbox ─────────────────────────────────────────────────────────────────
-const String kMapboxDarkStyle = 'mapbox://styles/mapbox/dark-v11';
+// ─── Map Tiles (CartoDB — free, no API key, no credit card) ─────────────────
+/// CartoDB Dark Matter tile URL. Subdomains a/b/c/d rotate automatically.
+const String kTileUrlTemplate =
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const List<String> kTileSubdomains = ['a', 'b', 'c', 'd'];
+const String kTileAttribution =
+    '© OpenStreetMap contributors, © CARTO';
+
 const double kFranceCenterLat = 46.2276;
 const double kFranceCenterLng = 2.2137;
 const double kInitialZoom = 5.5;
+const int kMaxTileZoom = 19;

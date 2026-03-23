@@ -3,17 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart' as FMTC;
 import 'firebase_options.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
 import 'services/offline_tile_service.dart';
 import 'app.dart';
-
-// Your Mapbox public token — replace with your actual token
-const String _mapboxAccessToken =
-    'pk.YOUR_MAPBOX_ACCESS_TOKEN_HERE';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,13 +34,13 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Initialize Mapbox
-  MapboxOptions.setAccessToken(_mapboxAccessToken);
+  // Initialize flutter_map tile caching (FMTC) — no API key needed
+  await FMTC.FlutterMapTileCaching.initialise();
 
   // Initialize Hive + SyncService (also inits StreakService + ElevationService)
   await SyncService.init();
 
-  // Initialize offline tile service
+  // Initialize offline tile service (creates FMTC store if needed)
   await OfflineTileService.init();
 
   // Initialize notifications
