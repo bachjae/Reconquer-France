@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
 import '../../providers/auth_provider.dart';
@@ -127,7 +127,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       Text(
                         'Explore. Conquer. Remember.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: const Color(kColorAccent).withOpacity(0.7),
+                              color: const Color(kColorAccent).withValues(alpha: 0.7),
                               letterSpacing: 2,
                             ),
                       ),
@@ -176,7 +176,7 @@ class FranceOutlinePainter extends CustomPainter {
 
     // Glow effect
     final glowPaint = Paint()
-      ..color = const Color(kColorAccent).withOpacity(0.3)
+      ..color = const Color(kColorAccent).withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6.0
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
@@ -194,7 +194,7 @@ class FranceOutlinePainter extends CustomPainter {
   void _drawHexCells(Canvas canvas, Size size, double progress) {
     final rng = Random(42);
     final hexPaint = Paint()
-      ..color = const Color(kColorUnlockedHex).withOpacity(progress * 0.6)
+      ..color = const Color(kColorUnlockedHex).withValues(alpha: progress * 0.6)
       ..style = PaintingStyle.fill;
 
     // Draw some random hex-like shapes inside France bounds
@@ -222,38 +222,58 @@ class FranceOutlinePainter extends CustomPainter {
     }
   }
 
-  // Simplified France outline — normalized coordinates (0=top-left, 1=bottom-right)
+  // France outline — normalized from bounding box (W=-5.1, E=9.6, S=41.4, N=51.1)
+  // x=(lng+5.1)/14.7  y=1-(lat-41.4)/9.7
   List<Offset> _getFranceOutlinePoints() {
     return [
-      // Starting from north, going clockwise (simplified)
-      const Offset(0.50, 0.05), // North (near Belgium)
-      const Offset(0.65, 0.08),
-      const Offset(0.75, 0.12),
-      const Offset(0.82, 0.10), // Alsace
-      const Offset(0.88, 0.20),
-      const Offset(0.90, 0.30),
-      const Offset(0.92, 0.42), // Swiss/Italian border
-      const Offset(0.88, 0.52),
-      const Offset(0.85, 0.62),
-      const Offset(0.80, 0.72), // Mediterranean coast
-      const Offset(0.72, 0.82),
-      const Offset(0.62, 0.88),
-      const Offset(0.50, 0.92), // South coast
-      const Offset(0.38, 0.90),
-      const Offset(0.28, 0.82), // Spanish border
-      const Offset(0.20, 0.72),
-      const Offset(0.15, 0.60),
-      const Offset(0.08, 0.50), // Bay of Biscay
-      const Offset(0.05, 0.40),
-      const Offset(0.08, 0.28),
-      const Offset(0.15, 0.18), // Brittany
-      const Offset(0.10, 0.22),
-      const Offset(0.12, 0.28),
-      const Offset(0.18, 0.22), // Cherbourg peninsula
-      const Offset(0.15, 0.15),
-      const Offset(0.22, 0.10),
-      const Offset(0.35, 0.06), // North coast
-      const Offset(0.50, 0.05), // Back to start
+      const Offset(0.51, 0.01), // Dunkirk
+      const Offset(0.46, 0.03), // Calais/Boulogne
+      const Offset(0.42, 0.09), // Dieppe
+      const Offset(0.36, 0.14), // Fécamp
+      const Offset(0.34, 0.17), // Le Havre
+      const Offset(0.32, 0.20), // Caen
+      const Offset(0.26, 0.20), // Cotentin base west
+      const Offset(0.22, 0.15), // Cherbourg tip
+      const Offset(0.27, 0.19), // Cotentin base east
+      const Offset(0.24, 0.24), // Granville
+      const Offset(0.21, 0.25), // Saint-Malo
+      const Offset(0.15, 0.23), // North Brittany
+      const Offset(0.09, 0.25), // Morlaix
+      const Offset(0.03, 0.27), // Brest
+      const Offset(0.02, 0.32), // Pointe du Raz
+      const Offset(0.08, 0.35), // South Brittany
+      const Offset(0.14, 0.37), // Lorient/Quiberon
+      const Offset(0.19, 0.40), // Loire mouth
+      const Offset(0.22, 0.46), // Vendée coast
+      const Offset(0.26, 0.52), // La Rochelle
+      const Offset(0.27, 0.59), // Charente
+      const Offset(0.25, 0.67), // Arcachon/Gironde
+      const Offset(0.23, 0.77), // Biarritz
+      const Offset(0.26, 0.82), // Pyrenees west
+      const Offset(0.35, 0.87), // Central Pyrenees
+      const Offset(0.46, 0.87), // Eastern Pyrenees
+      const Offset(0.54, 0.88), // Perpignan
+      const Offset(0.57, 0.92), // Cap Cerbère (SE tip)
+      const Offset(0.55, 0.82), // Narbonne
+      const Offset(0.61, 0.79), // Sète
+      const Offset(0.66, 0.78), // Montpellier
+      const Offset(0.72, 0.80), // Marseille
+      const Offset(0.75, 0.83), // Toulon
+      const Offset(0.82, 0.78), // Cannes
+      const Offset(0.85, 0.75), // Nice
+      const Offset(0.87, 0.73), // Menton/Italian border
+      const Offset(0.88, 0.62), // Alpine border
+      const Offset(0.84, 0.53), // Geneva/Swiss border
+      const Offset(0.87, 0.45), // Swiss border north
+      const Offset(0.87, 0.37), // Basel
+      const Offset(0.88, 0.28), // Strasbourg/Alsace
+      const Offset(0.87, 0.21), // Rhine border
+      const Offset(0.83, 0.16), // German border
+      const Offset(0.78, 0.11), // Luxembourg
+      const Offset(0.72, 0.07), // Belgian border/Ardennes
+      const Offset(0.65, 0.04), // Belgian border west
+      const Offset(0.57, 0.02), // North coast
+      const Offset(0.51, 0.01), // Back to Dunkirk
     ];
   }
 

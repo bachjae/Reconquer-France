@@ -1,14 +1,17 @@
 import 'dart:async';
-import 'package:flutter_background_geolocation/flutter_background_geolocation.dart'
-    as bg;
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'hex_grid_service.dart';
 import 'sync_service.dart';
 import 'elevation_service.dart';
-import '../core/constants.dart';
+
 
 class LocationService {
-  static final Map<String, DateTime> _dwellTimers = {};
+  /// Set to true to also unlock cells in Lincoln NE (test mode)
+  static bool testMode = false;
+
   static StreamController<String> _cellUnlockController =
       StreamController<String>.broadcast();
   static StreamController<LatLng> _positionController =
@@ -22,88 +25,123 @@ class LocationService {
 
   static String? _currentTripId;
 
+  static StreamSubscription<Position>? _fallbackSub;
+
+  /// Start location tracking for an active trip (unlocks cells on dwell).
   static Future<void> initialize(String tripId) async {
     _currentTripId = tripId;
+    await _ensureStreamRunning();
+  }
 
-    final permission = await Geolocator.checkPermission();
+  /// Start position updates without a trip (for My Location button / map use).
+  /// Safe to call multiple times — no-ops if stream is already running.
+  static Future<void> startPositionUpdatesOnly() async {
+    await _ensureStreamRunning();
+  }
+
+  static Future<void> _ensureStreamRunning() async {
+    if (_fallbackSub != null) return; // already running
+
+    var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      await Geolocator.requestPermission();
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever) return;
+
+    if (!kIsWeb && Platform.isAndroid) {
+      // Request "Allow all the time" location for background tracking.
+      // This is needed on Android 10+ for location access when screen is locked.
+      final bgStatus = await Permission.locationAlways.status;
+      if (bgStatus.isDenied) {
+        await Permission.locationAlways.request();
+      }
+
+      // Exempt from Doze mode so the foreground service fires even on battery saver.
+      if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
     }
 
-    await bg.BackgroundGeolocation.ready(bg.Config(
-      desiredAccuracy: bg.Config.DESIRED_ACCURACY_HIGH,
-      distanceFilter: kDistanceFilterMeters,
-      stopOnTerminate: false,
-      startOnBoot: true,
-      enableHeadless: true,
-      logLevel: bg.Config.LOG_LEVEL_OFF,
-      notification: bg.Notification(
-        title: 'Reconquer France',
-        text: 'Tracking your conquest...',
-        smallIcon: 'drawable/ic_flag',
-        color: '#E8C547',
-      ),
-      // Battery-saving config
-      activityType: bg.Config.ACTIVITY_TYPE_FITNESS,
-      pausesLocationUpdatesAutomatically: false,
-      preventSuspend: true,
-    ));
+    _startFallbackStream();
+  }
 
-    bg.BackgroundGeolocation.onLocation((bg.Location location) {
-      final lat = location.coords.latitude;
-      final lng = location.coords.longitude;
-      final altitude = location.coords.altitude;
-      final altAccuracy = location.coords.altitudeAccuracy ?? 0.0;
-      final pos = LatLng(lat, lng);
+  static void _startFallbackStream() {
+    _fallbackSub?.cancel();
 
-      _lastPosition = pos;
-      _positionController.add(pos);
+    final LocationSettings settings;
+    if (!kIsWeb && Platform.isAndroid) {
+      settings = AndroidSettings(
+        // medium = WiFi/cell tower triangulation — accurate to ~50 m, much
+        // cheaper than GPS. Hex cells are ~200 m wide so this is plenty.
+        accuracy: LocationAccuracy.medium,
+        // Only wake up when the user has actually moved 50 m.
+        distanceFilter: 50,
+        // Never poll faster than every 30 s regardless of distance.
+        intervalDuration: const Duration(seconds: 30),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Reconquer France',
+          notificationText: 'Tracking location to unlock hexes',
+          // enableWakeLock keeps the CPU alive for processing; the medium
+          // accuracy setting keeps GPS hardware off most of the time.
+          enableWakeLock: true,
+          notificationIcon: AndroidResource(
+            name: 'ic_launcher',
+            defType: 'mipmap',
+          ),
+        ),
+      );
+    } else {
+      settings = const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 50,
+      );
+    }
 
-      // Record elevation data
-      ElevationService.recordAltitude(altitude, altitudeAccuracy: altAccuracy);
+    _fallbackSub = Geolocator.getPositionStream(locationSettings: settings)
+        .listen(
+      (Position pos) {
+        _onPosition(pos.latitude, pos.longitude,
+            altitude: pos.altitude, altAccuracy: pos.altitudeAccuracy);
+      },
+      onError: (_) {},
+    );
+  }
 
-      // Only process cells within France
-      if (HexGridService.isInFrance(lat, lng)) {
-        final hexId = HexGridService.latLngToHexId(lat, lng);
-        _handleCellVisit(hexId);
-      }
-    });
-
-    bg.BackgroundGeolocation.onMotionChange((bg.Location location) {
-      // Clear dwell timers when motion changes
-      _dwellTimers.clear();
-    });
-
-    await bg.BackgroundGeolocation.start();
+  static void _onPosition(double lat, double lng,
+      {double altitude = 0, double altAccuracy = 0}) {
+    final pos = LatLng(lat, lng);
+    _lastPosition = pos;
+    _positionController.add(pos);
+    ElevationService.recordAltitude(altitude, altitudeAccuracy: altAccuracy);
+    if (HexGridService.isInActiveArea(lat, lng, testMode: testMode)) {
+      _handleCellVisit(HexGridService.latLngToHexId(lat, lng));
+    }
   }
 
   static void _handleCellVisit(String hexId) {
-    // Already unlocked — no need to dwell
     if (SyncService.isCellUnlocked(hexId)) return;
-
-    if (!_dwellTimers.containsKey(hexId)) {
-      _dwellTimers[hexId] = DateTime.now();
-    } else {
-      final elapsed = DateTime.now().difference(_dwellTimers[hexId]!);
-      if (elapsed.inSeconds >= kDwellSecondsRequired) {
-        _unlockCell(hexId);
-        _dwellTimers.remove(hexId);
-        // Remove all other dwell timers for cleanup
-        _dwellTimers.removeWhere((k, v) =>
-            DateTime.now().difference(v).inMinutes > 5);
-      }
-    }
+    _unlockCell(hexId);
   }
 
   static Future<void> _unlockCell(String hexId) async {
-    if (_currentTripId == null) return;
-    await SyncService.unlockCell(hexId, _currentTripId!);
+    // Unlock locally even without a trip — cells are saved to Hive and will
+    // sync to Firestore once a real trip is created via trip setup.
+    final tripId = _currentTripId ?? 'local';
+    await SyncService.unlockCell(hexId, tripId);
     _cellUnlockController.add(hexId);
   }
 
+  /// Re-process the last known position — useful when test mode toggles on
+  /// so a stationary user immediately gets credit for their current cell.
+  static void recheckLastPosition() {
+    if (_lastPosition == null) return;
+    _onPosition(_lastPosition!.latitude, _lastPosition!.longitude);
+  }
+
   static Future<void> stop() async {
-    await bg.BackgroundGeolocation.stop();
-    _dwellTimers.clear();
+    await _fallbackSub?.cancel();
+    _fallbackSub = null;
+    _currentTripId = null;
   }
 
   static Future<Position?> getCurrentPosition() async {
@@ -115,7 +153,7 @@ class LocationService {
       }
       return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        timeLimit: const Duration(seconds: 15),
       );
     } catch (_) {
       return null;

@@ -1,4 +1,4 @@
-import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
 import '../services/hex_grid_service.dart';
@@ -25,7 +25,7 @@ class HexOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final lockedPaint = Paint()
-      ..color = const Color(kColorLockedHex).withOpacity(0.9)
+      ..color = const Color(kColorLockedHex).withValues(alpha: 0.9)
       ..style = PaintingStyle.fill;
 
     final lockedBorderPaint = Paint()
@@ -34,11 +34,11 @@ class HexOverlayPainter extends CustomPainter {
       ..strokeWidth = 0.3;
 
     final unlockedPaint = Paint()
-      ..color = const Color(kColorUnlockedHex).withOpacity(0.8)
+      ..color = const Color(kColorUnlockedHex).withValues(alpha: 0.8)
       ..style = PaintingStyle.fill;
 
     final unlockedBorderPaint = Paint()
-      ..color = const Color(kColorAccent).withOpacity(0.4)
+      ..color = const Color(kColorAccent).withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
 

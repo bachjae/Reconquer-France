@@ -4,11 +4,12 @@ import 'dart:typed_data';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:exif/exif.dart';
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'hex_grid_service.dart';
 import 'sync_service.dart';
 import '../models/trip_photo.dart';
-import '../core/constants.dart';
+
 
 class PhotoService {
   static const _uuid = Uuid();
@@ -21,7 +22,11 @@ class PhotoService {
       return [];
     }
 
-    final albums = await PhotoManager.getAssetPathList(type: RequestType.image);
+    // onlyAll:true returns the virtual "All Photos" album on both Android and iOS.
+    final albums = await PhotoManager.getAssetPathList(
+      type: RequestType.image,
+      onlyAll: true,
+    );
     if (albums.isEmpty) return [];
 
     final allPhotos = await albums.first
@@ -81,8 +86,10 @@ class PhotoService {
 
     if (lat == null || lng == null) return null;
 
-    // Must be within France
-    if (!HexGridService.isInFrance(lat, lng)) return null;
+    // Must be within an active area (France, or Lincoln NE in test mode)
+    final prefs = await SharedPreferences.getInstance();
+    final testMode = prefs.getBool('test_mode_lincoln') ?? false;
+    if (!HexGridService.isInActiveArea(lat, lng, testMode: testMode)) return null;
 
     final hexId = HexGridService.latLngToHexId(lat, lng);
 
@@ -151,7 +158,9 @@ class PhotoService {
     required double lng,
     required String tripId,
   }) async {
-    if (!HexGridService.isInFrance(lat, lng)) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final testMode = prefs.getBool('test_mode_lincoln') ?? false;
+    if (!HexGridService.isInActiveArea(lat, lng, testMode: testMode)) return null;
 
     final hexId = HexGridService.latLngToHexId(lat, lng);
     final thumbnailBase64 = await _generateThumbnail(photoFile);

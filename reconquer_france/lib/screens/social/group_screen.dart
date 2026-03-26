@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../core/constants.dart';
 import '../../models/trip_group.dart';
 import '../../providers/social_provider.dart';
@@ -166,13 +166,13 @@ class _AlertCard extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isHusker
-            ? const Color(kColorHusker).withOpacity(0.1)
-            : const Color(kColorCorn).withOpacity(0.1),
+            ? const Color(kColorHusker).withValues(alpha: 0.1)
+            : const Color(kColorCorn).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isHusker
-              ? const Color(kColorHusker).withOpacity(0.5)
-              : const Color(kColorCorn).withOpacity(0.5),
+              ? const Color(kColorHusker).withValues(alpha: 0.5)
+              : const Color(kColorCorn).withValues(alpha: 0.5),
         ),
       ),
       child: Row(
@@ -275,7 +275,7 @@ class _RoleManagementSection extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
               backgroundColor: role == GroupMemberRole.leader
-                  ? const Color(kColorCorn).withOpacity(0.2)
+                  ? const Color(kColorCorn).withValues(alpha: 0.2)
                   : Colors.white10,
               child: Text(
                 role == GroupMemberRole.leader ? '👑' : '👤',

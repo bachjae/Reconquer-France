@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/elevation_service.dart';
 
@@ -34,10 +35,22 @@ class ElevationStats {
 }
 
 class ElevationNotifier extends StateNotifier<ElevationStats> {
-  ElevationNotifier() : super(ElevationStats.fromService());
+  StreamSubscription<void>? _sub;
+
+  ElevationNotifier() : super(ElevationStats.fromService()) {
+    _sub = ElevationService.onUpdate.listen((_) {
+      state = ElevationStats.fromService();
+    });
+  }
 
   void refresh() {
     state = ElevationStats.fromService();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 }
 

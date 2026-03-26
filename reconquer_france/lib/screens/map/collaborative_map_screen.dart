@@ -163,9 +163,9 @@ class _StatsHeader extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: color.withOpacity(0.5)),
+                    border: Border.all(color: color.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -218,7 +218,7 @@ class _CollaborativePainter extends CustomPainter {
 
     // France border
     final borderPaint = Paint()
-      ..color = const Color(kColorAccent).withOpacity(0.4)
+      ..color = const Color(kColorAccent).withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawRect(
@@ -236,7 +236,7 @@ class _CollaborativePainter extends CustomPainter {
       final ownerUid = entry.value;
       final colorIdx = colorMap[ownerUid] ?? 0;
       final rawColor = kGroupMemberColors[colorIdx % kGroupMemberColors.length];
-      final color = Color(rawColor | 0xFF000000).withOpacity(0.75);
+      final color = Color(rawColor | 0xFF000000).withValues(alpha: 0.75);
 
       final center = HexGridService.hexIdToCenter(hexId);
       final p = _latLngToOffset(center.latitude, center.longitude, size);

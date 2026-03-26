@@ -22,7 +22,7 @@ class HexCell extends HiveObject {
   @HiveField(5)
   final String? unlockedByUid; // uid of who unlocked (for group maps)
 
-  const HexCell({
+  HexCell({
     required this.id,
     this.isUnlocked = false,
     this.unlockedAt,

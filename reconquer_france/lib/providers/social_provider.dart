@@ -18,13 +18,12 @@ final activeGroupProvider = StreamProvider<TripGroup?>((ref) async* {
   yield* _firestore
       .collection('groups')
       .where('memberIds', arrayContains: user.uid)
-      .orderBy('createdAt', descending: true)
       .limit(1)
       .snapshots()
-      .map((snap) {
+      .map<TripGroup?>((snap) {
     if (snap.docs.isEmpty) return null;
     return TripGroup.fromFirestore(snap.docs.first);
-  });
+  }).handleError((_) => null);
 });
 
 /// Group leaderboard (sorted by cells unlocked)
@@ -34,6 +33,7 @@ final groupLeaderboardProvider =
       .collection('groups')
       .doc(groupId)
       .snapshots()
+      .handleError((_) {})
       .asyncMap((groupSnap) async {
     final group = TripGroup.fromFirestore(groupSnap);
 
@@ -134,6 +134,7 @@ final myGroupAlertsProvider = StreamProvider<List<GroupAlert>>((ref) {
       .orderBy('timestamp', descending: true)
       .limit(20)
       .snapshots()
+      .handleError((_) {})
       .map((snap) {
     final all =
         snap.docs.map((d) => GroupAlert.fromFirestore(d)).toList();
@@ -154,6 +155,7 @@ final groupAlertsProvider =
       .orderBy('timestamp', descending: true)
       .limit(20)
       .snapshots()
+      .handleError((_) {})
       .map((snap) => snap.docs
           .map((d) => GroupAlert.fromFirestore(d))
           .toList());
@@ -165,8 +167,13 @@ class SocialActions {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
+    // Fetch sender's own username to display in the recipient's request card
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final fromUsername = userDoc.data()?['username'] as String? ?? '';
+
     await _firestore.collection('friendRequests').add({
       'fromUid': uid,
+      'fromUsername': fromUsername,
       'toUsername': toUsername.toLowerCase(),
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
@@ -257,6 +264,16 @@ class SocialActions {
 
     await _firestore.collection('groups').doc(groupId).update({
       'roles.$targetUid': role == GroupMemberRole.leader ? 'leader' : 'student',
+    });
+  }
+
+  static Future<void> leaveGroup(String groupId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await _firestore.collection('groups').doc(groupId).update({
+      'memberIds': FieldValue.arrayRemove([uid]),
+      'roles.$uid': FieldValue.delete(),
     });
   }
 

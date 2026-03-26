@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
 import '../../providers/social_provider.dart';
-import '../../providers/auth_provider.dart';
+
 import '../../models/trip_group.dart';
 
 class FriendsTab extends ConsumerStatefulWidget {
@@ -131,7 +131,9 @@ class _FriendRequestCard extends ConsumerWidget {
           backgroundColor: Color(0xFF1A1A2E),
           child: Icon(Icons.person, color: Color(kColorAccent)),
         ),
-        title: Text('@${request.fromUid}'),
+        title: Text(request.fromUsername.isNotEmpty
+            ? '@${request.fromUsername}'
+            : 'Someone'),
         subtitle: const Text('wants to be your friend'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -269,6 +271,51 @@ class _GroupSectionState extends ConsumerState<_GroupSection> {
                                   ),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (dialogCtx) => AlertDialog(
+                                title: const Text('Leave Group?'),
+                                content: Text(
+                                    'You will leave "${group.name}". You can rejoin with the invite code.'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogCtx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogCtx, true),
+                                    child: const Text('Leave',
+                                        style: TextStyle(
+                                            color: Colors.redAccent)),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              try {
+                                await SocialActions.leaveGroup(group.id);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error leaving group: $e')),
+                                  );
+                                }
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.exit_to_app,
+                              color: Colors.redAccent, size: 16),
+                          label: const Text('Leave Group',
+                              style: TextStyle(color: Colors.redAccent)),
                         ),
                       ),
                     ],

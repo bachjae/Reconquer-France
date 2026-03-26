@@ -31,10 +31,10 @@ class BadgesScreen extends ConsumerWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
-                  color: const Color(kColorAccent).withOpacity(0.15),
+                  color: const Color(kColorAccent).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                      color: const Color(kColorAccent).withOpacity(0.5)),
+                      color: const Color(kColorAccent).withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   '$earned / ${kFranceRegions.length}',
@@ -140,13 +140,13 @@ class _RegionCard extends StatelessWidget {
         color: const Color(0xFF0F0F1A),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: unlocked ? _tierColor.withOpacity(0.6) : const Color(0xFF2A2A4E),
+          color: unlocked ? _tierColor.withValues(alpha: 0.6) : const Color(0xFF2A2A4E),
           width: unlocked ? 1.5 : 1,
         ),
         boxShadow: unlocked
             ? [
                 BoxShadow(
-                  color: _tierColor.withOpacity(0.15),
+                  color: _tierColor.withValues(alpha: 0.15),
                   blurRadius: 12,
                   spreadRadius: 1,
                 )
@@ -167,9 +167,9 @@ class _RegionCard extends StatelessWidget {
                   height: 60,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _tierColor.withOpacity(0.12),
+                    color: _tierColor.withValues(alpha: 0.12),
                     border: Border.all(
-                        color: _tierColor.withOpacity(0.4), width: 2),
+                        color: _tierColor.withValues(alpha: 0.4), width: 2),
                   ),
                   child: Center(
                     child: Text(

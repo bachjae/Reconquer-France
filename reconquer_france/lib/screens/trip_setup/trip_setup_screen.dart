@@ -24,7 +24,7 @@ class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
   bool _creating = false;
   bool _downloadingMap = false;
   double _downloadProgress = 0.0;
-  String? _inviteCode;
+
   bool _showJoinGroup = false;
   final _inviteCodeCtrl = TextEditingController();
 

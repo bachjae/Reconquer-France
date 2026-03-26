@@ -50,7 +50,7 @@ class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('🌽 Alert sent to ${group.leaderIds.length} group leader(s)'),
-          backgroundColor: const Color(kColorCorn).withOpacity(0.8),
+          backgroundColor: const Color(kColorCorn).withValues(alpha: 0.8),
         ),
       );
     }

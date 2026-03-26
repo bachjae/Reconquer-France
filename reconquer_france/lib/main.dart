@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart' as FMTC;
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'firebase_options.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
@@ -34,8 +34,8 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Initialize flutter_map tile caching (FMTC) — no API key needed
-  await FMTC.FlutterMapTileCaching.initialise();
+  // Initialize flutter_map tile caching (FMTC v9) — no API key needed
+  await FMTCObjectBoxBackend().initialise();
 
   // Initialize Hive + SyncService (also inits StreakService + ElevationService)
   await SyncService.init();

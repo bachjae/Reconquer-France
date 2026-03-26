@@ -27,6 +27,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _authService = AuthService();
 
   @override
+  void initState() {
+    super.initState();
+    _usernameCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
@@ -327,7 +333,7 @@ class _Step3 extends StatelessWidget {
                   height: 60,
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(kColorAccent).withOpacity(0.2)
+                        ? const Color(kColorAccent).withValues(alpha: 0.2)
                         : const Color(0xFF1A1A2E),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(

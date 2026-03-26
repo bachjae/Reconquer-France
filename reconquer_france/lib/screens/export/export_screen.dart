@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+
 import 'dart:ui' as ui;
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -185,10 +185,10 @@ class _ExportCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                        color: const Color(kColorAccent).withOpacity(0.5)),
+                        color: const Color(kColorAccent).withValues(alpha: 0.5)),
                   ),
                   child: Column(
                     children: [
@@ -366,7 +366,7 @@ class _ExportMapPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // France border glow
     final glowPaint = Paint()
-      ..color = const Color(kColorAccent).withOpacity(0.15)
+      ..color = const Color(kColorAccent).withValues(alpha: 0.15)
       ..style = PaintingStyle.fill;
     final borderPaint = Paint()
       ..color = const Color(kColorAccent)
@@ -379,7 +379,7 @@ class _ExportMapPainter extends CustomPainter {
 
     // Unlocked cells as dots
     final cellPaint = Paint()
-      ..color = const Color(kColorUnlockedHex).withOpacity(0.6)
+      ..color = const Color(kColorUnlockedHex).withValues(alpha: 0.6)
       ..style = PaintingStyle.fill;
 
     for (final hexId in unlockedCells.take(500)) {
@@ -399,15 +399,21 @@ class _ExportMapPainter extends CustomPainter {
     }
   }
 
+  // France outline normalized to [0,1] — matches splash screen outline
   Path _scaledFrancePath(Size size) {
-    final points = [
-      [0.50, 0.05], [0.65, 0.08], [0.75, 0.12], [0.82, 0.10],
-      [0.88, 0.20], [0.90, 0.30], [0.92, 0.42], [0.88, 0.52],
-      [0.85, 0.62], [0.80, 0.72], [0.72, 0.82], [0.62, 0.88],
-      [0.50, 0.92], [0.38, 0.90], [0.28, 0.82], [0.20, 0.72],
-      [0.15, 0.60], [0.08, 0.50], [0.05, 0.40], [0.08, 0.28],
-      [0.15, 0.18], [0.10, 0.22], [0.12, 0.28], [0.18, 0.22],
-      [0.15, 0.15], [0.22, 0.10], [0.35, 0.06], [0.50, 0.05],
+    const points = [
+      [0.51, 0.01], [0.46, 0.03], [0.42, 0.09], [0.36, 0.14],
+      [0.34, 0.17], [0.32, 0.20], [0.26, 0.20], [0.22, 0.15],
+      [0.27, 0.19], [0.24, 0.24], [0.21, 0.25], [0.15, 0.23],
+      [0.09, 0.25], [0.03, 0.27], [0.02, 0.32], [0.08, 0.35],
+      [0.14, 0.37], [0.19, 0.40], [0.22, 0.46], [0.26, 0.52],
+      [0.27, 0.59], [0.25, 0.67], [0.23, 0.77], [0.26, 0.82],
+      [0.35, 0.87], [0.46, 0.87], [0.54, 0.88], [0.57, 0.92],
+      [0.55, 0.82], [0.61, 0.79], [0.66, 0.78], [0.72, 0.80],
+      [0.75, 0.83], [0.82, 0.78], [0.85, 0.75], [0.87, 0.73],
+      [0.88, 0.62], [0.84, 0.53], [0.87, 0.45], [0.87, 0.37],
+      [0.88, 0.28], [0.87, 0.21], [0.83, 0.16], [0.78, 0.11],
+      [0.72, 0.07], [0.65, 0.04], [0.57, 0.02], [0.51, 0.01],
     ];
 
     final path = Path();

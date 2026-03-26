@@ -19,7 +19,8 @@ class HexGridService {
   static String latLngToHexId(double lat, double lng) {
     final double kmPerDegreeLng = kmPerDegreeLat * cos(lat * pi / 180);
     final double hexWidthDeg = (hexSizeKm * sqrt(3)) / kmPerDegreeLng;
-    final double hexHeightDeg = hexSizeKm / kmPerDegreeLat;
+    // Pointy-top hex row spacing = 1.5 * circumradius
+    final double hexHeightDeg = (hexSizeKm * 1.5) / kmPerDegreeLat;
 
     int row = (lat / hexHeightDeg).floor();
     int col = (lng / hexWidthDeg).floor();
@@ -38,7 +39,7 @@ class HexGridService {
     final int col = int.parse(parts[0]);
     final int row = int.parse(parts[1]);
 
-    final double lat = (row + 0.5) * (hexSizeKm / kmPerDegreeLat);
+    final double lat = (row + 0.5) * (hexSizeKm * 1.5 / kmPerDegreeLat);
     final double kmPerDegreeLng = kmPerDegreeLat * cos(lat * pi / 180);
     final double hexWidthDeg = (hexSizeKm * sqrt(3)) / kmPerDegreeLng;
 
@@ -48,22 +49,27 @@ class HexGridService {
     return LatLng(lat, lng);
   }
 
-  /// Get 6 corner points of a hex for rendering (pointy-top orientation)
+  /// Get 6 corner points of a hex for rendering (pointy-top orientation).
+  /// R_lat and R_lng are sized so hexes tile with zero gap.
   static List<LatLng> hexCorners(String hexId) {
     final LatLng center = hexIdToCenter(hexId);
     final double lat = center.latitude;
     final double kmPerDegreeLng = kmPerDegreeLat * cos(lat * pi / 180);
-    final double radiusDegLat = hexSizeKm / 2 / kmPerDegreeLat;
-    final double radiusDegLng = hexSizeKm / 2 / kmPerDegreeLng;
+
+    // Circumradius = hexSizeKm for both axes so hexes are regular (no gaps).
+    //   Column spacing = R * sqrt(3) = hexWidthDeg  → R_lng = hexSizeKm / kmPerDegreeLng ✓
+    //   Row spacing    = R * 1.5     = hexHeightDeg → R_lat = hexSizeKm / kmPerDegreeLat ✓
+    final double R_lat = hexSizeKm / kmPerDegreeLat;
+    final double R_lng = hexSizeKm / kmPerDegreeLng;
 
     final List<LatLng> corners = [];
     for (int i = 0; i < 6; i++) {
-      // Pointy-top: first vertex points up (angle offset -90 degrees from 0)
-      final double angleDeg = 60.0 * i - 90.0;
+      // Pointy-top: angles at -30°, 30°, 90°, 150°, 210°, 270°
+      final double angleDeg = 60.0 * i - 30.0;
       final double angleRad = angleDeg * pi / 180;
       corners.add(LatLng(
-        center.latitude + radiusDegLat * cos(angleRad) * sqrt(3) / 2,
-        center.longitude + radiusDegLng * sin(angleRad) * sqrt(3) / 2,
+        center.latitude - R_lat * sin(angleRad),
+        center.longitude + R_lng * cos(angleRad),
       ));
     }
     return corners;
@@ -83,7 +89,7 @@ class HexGridService {
     final double padE = eastLng + paddingDeg;
 
     // Estimate row range
-    final double hexHeightDeg = hexSizeKm / kmPerDegreeLat;
+    final double hexHeightDeg = hexSizeKm * 1.5 / kmPerDegreeLat;
     final int rowMin = (padS / hexHeightDeg).floor();
     final int rowMax = (padN / hexHeightDeg).ceil();
 
@@ -151,5 +157,18 @@ class HexGridService {
         lat <= FRANCE_NORTH &&
         lng >= FRANCE_WEST &&
         lng <= FRANCE_EAST;
+  }
+
+  /// Check if a lat/lng is within Lincoln NE test area
+  static bool isInLincoln(double lat, double lng) {
+    return lat >= LINCOLN_SOUTH &&
+        lat <= LINCOLN_NORTH &&
+        lng >= LINCOLN_WEST &&
+        lng <= LINCOLN_EAST;
+  }
+
+  /// Check if a lat/lng is in an active unlockable area (France or Lincoln in test mode)
+  static bool isInActiveArea(double lat, double lng, {bool testMode = false}) {
+    return isInFrance(lat, lng) || (testMode && isInLincoln(lat, lng));
   }
 }

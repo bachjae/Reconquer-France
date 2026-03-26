@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Location permissions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -27,11 +28,15 @@
     <!-- Wake lock for background tracking -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Exemption from Doze / battery optimisation for reliable background tracking -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <application
         android:label="Reconquer France"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:enableOnBackInvokedCallback="true">
+        android:enableOnBackInvokedCallback="true"
+        tools:replace="android:label">
 
         <!-- Main Flutter activity -->
         <activity
@@ -59,6 +64,11 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Geolocator foreground service for background location tracking -->
+        <service
+            android:name="com.baseflow.geolocator.service.PositionStreamOverflowAlarm"
+            android:exported="false" />
+
         <!-- Firebase Messaging -->
         <service
             android:name="com.google.firebase.messaging.FirebaseMessagingService"
@@ -67,23 +77,6 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
-
-        <!-- Background Geolocation -->
-        <service
-            android:name="com.transistorsoft.locationmanager.service.TrackingService"
-            android:foregroundServiceType="location" />
-        <service
-            android:name="com.transistorsoft.locationmanager.service.LocationRequestService"
-            android:foregroundServiceType="location" />
-
-        <receiver android:name="com.transistorsoft.locationmanager.util.BootReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
-                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
-            </intent-filter>
-        </receiver>
 
         <!-- Husker notification channel is created programmatically in NotificationService -->
 

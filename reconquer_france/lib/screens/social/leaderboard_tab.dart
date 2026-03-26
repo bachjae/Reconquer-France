@@ -117,7 +117,7 @@ class _LeaderboardEntry extends ConsumerWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.3),
+                color: color.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
                 border: Border.all(color: color, width: 2),
               ),

@@ -6,6 +6,14 @@ const double FRANCE_SOUTH = 41.3;
 const double FRANCE_WEST = -5.2;
 const double FRANCE_EAST = 9.6;
 
+// ─── Lincoln NE Test Area ───────────────────────────────────────────────────
+const double LINCOLN_NORTH = 40.95;
+const double LINCOLN_SOUTH = 40.70;
+const double LINCOLN_WEST = -96.85;
+const double LINCOLN_EAST = -96.55;
+const double LINCOLN_CENTER_LAT = 40.8258;
+const double LINCOLN_CENTER_LNG = -96.6852;
+
 // ─── Hex Grid ───────────────────────────────────────────────────────────────
 const double HEX_SIZE_KM = 1.0;
 const int TOTAL_FRANCE_HEXES = 550000;

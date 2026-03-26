@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/photo_provider.dart';
-import '../../services/sync_service.dart';
+
 import '../../services/hex_grid_service.dart';
 
 class HexDetailSheet extends ConsumerWidget {
@@ -58,7 +58,7 @@ class HexDetailSheet extends ConsumerWidget {
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: isUnlocked
-                                ? const Color(kColorUnlockedHex).withOpacity(0.3)
+                                ? const Color(kColorUnlockedHex).withValues(alpha: 0.3)
                                 : const Color(kColorLockedHex),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(

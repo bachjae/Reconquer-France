@@ -441,7 +441,7 @@ class _BottomBar extends StatelessWidget {
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(kColorAccent).withOpacity(0.2),
+              color: const Color(kColorAccent).withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Text(

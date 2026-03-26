@@ -5,10 +5,11 @@ import '../../core/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/badge_provider.dart';
-import '../../providers/streak_provider.dart';
+
 import '../../providers/elevation_provider.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/streak_badge.dart';
+import '../../providers/test_mode_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -164,7 +165,7 @@ class _ProfileHeader extends StatelessWidget {
               border: Border.all(color: const Color(kColorAccent), width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(kColorAccent).withOpacity(0.3),
+                  color: const Color(kColorAccent).withValues(alpha: 0.3),
                   blurRadius: 20,
                 ),
               ],
@@ -363,9 +364,9 @@ class _ElevStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(
           children: [
@@ -387,9 +388,10 @@ class _ElevStat extends StatelessWidget {
   }
 }
 
-class _SettingsSection extends StatelessWidget {
+class _SettingsSection extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final testMode = ref.watch(testModeProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -468,6 +470,32 @@ class _SettingsSection extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        // Test mode toggle — unlocks Lincoln NE instead of France
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: testMode ? Colors.orange.withValues(alpha: 0.2) : const Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.science_outlined,
+                color: testMode ? Colors.orange : const Color(kColorAccent), size: 20),
+          ),
+          title: Text('Test Mode (Lincoln NE)',
+              style: Theme.of(context).textTheme.titleSmall),
+          subtitle: Text(
+            testMode ? 'Active — walk Lincoln NE to unlock hexes' : 'Simulate in Lincoln, Nebraska',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          trailing: Switch(
+            value: testMode,
+            activeThumbColor: Colors.orange,
+            onChanged: (_) => ref.read(testModeProvider.notifier).toggle(),
+          ),
+          onTap: () => ref.read(testModeProvider.notifier).toggle(),
         ),
         _SettingsTile(
           icon: Icons.info_outlined,

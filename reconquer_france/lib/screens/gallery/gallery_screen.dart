@@ -19,9 +19,20 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   bool _isGridView = true;
   bool _importing = false;
 
-  Future<void> _importPhotos() async {
-    final tripId = ref.read(currentTripIdProvider);
-    if (tripId == null) return;
+  @override
+  void initState() {
+    super.initState();
+    // Auto-import once when the gallery opens if no photos are loaded yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(allPhotosProvider).isEmpty) {
+        _importPhotos(silent: true);
+      }
+    });
+  }
+
+  Future<void> _importPhotos({bool silent = false}) async {
+    if (_importing) return;
+    final tripId = ref.read(currentTripIdProvider) ?? 'local';
 
     setState(() => _importing = true);
     await ref.read(allPhotosProvider.notifier).importFromLibrary(tripId);
@@ -69,7 +80,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               ),
               // Import button
               IconButton(
-                onPressed: _importing ? null : _importPhotos,
+                onPressed: _importing ? null : () => _importPhotos(),
                 icon: _importing
                     ? const SizedBox(
                         width: 20,
@@ -444,7 +455,7 @@ class _MapViewPainter extends CustomPainter {
 
     // Draw unlocked cells as small dots
     final cellPaint = Paint()
-      ..color = const Color(kColorUnlockedHex).withOpacity(0.7)
+      ..color = const Color(kColorUnlockedHex).withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
 
     for (final hexId in unlockedCells.take(1000)) {

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/test_mode_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/hex_grid_service.dart' hide LatLng;
 import '../../services/offline_tile_service.dart';
@@ -30,7 +31,11 @@ class _MapScreenState extends ConsumerState<MapScreen>
   final MapController _mapController = MapController();
   bool _mapReady = false;
   StreamSubscription<String>? _cellUnlockSub;
+  StreamSubscription<dynamic>? _locationSub;
   Timer? _viewportDebounce;
+
+  // Live location dot
+  LatLng? _currentPosition;
 
   // Camera animation
   late AnimationController _animController;
@@ -58,11 +63,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
     _cellUnlockSub = LocationService.onCellUnlocked.listen((_) {
       if (_mapReady) _rebuildViewportHexes();
     });
+    _locationSub = LocationService.onPositionUpdate.listen((pos) {
+      if (mounted) {
+        setState(() {
+          _currentPosition = LatLng(pos.latitude, pos.longitude);
+        });
+      }
+    });
+    // Start position updates so My Location button and cell tracking work
+    // even before a trip is created.
+    LocationService.startPositionUpdatesOnly();
   }
 
   @override
   void dispose() {
     _cellUnlockSub?.cancel();
+    _locationSub?.cancel();
     _viewportDebounce?.cancel();
     _animController.dispose();
     super.dispose();
@@ -113,6 +129,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
     if (!_mapReady) return;
     final camera = _mapController.camera;
     final zoom = camera.zoom;
+    final testMode = ref.read(testModeProvider);
 
     if (zoom < 8.0) {
       // Below hex-detail zoom: clear polygons but show conquered cells as dots
@@ -127,8 +144,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
           return CircleMarker(
             point: LatLng(center.latitude, center.longitude),
             radius: 5,
-            color: const Color(kColorUnlockedHex).withOpacity(0.9),
-            borderColor: const Color(kColorAccent).withOpacity(0.5),
+            color: const Color(kColorUnlockedHex).withValues(alpha: 0.9),
+            borderColor: const Color(kColorAccent).withValues(alpha: 0.5),
             borderStrokeWidth: 0.8,
             useRadiusInMeter: false,
           );
@@ -140,13 +157,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
     final bounds = camera.visibleBounds;
     final unlockedCells = ref.read(unlockedCellsProvider);
 
-    final hexIds = HexGridService.getHexIdsInBounds(
-      northLat: bounds.north.clamp(FRANCE_SOUTH, FRANCE_NORTH),
-      southLat: bounds.south.clamp(FRANCE_SOUTH, FRANCE_NORTH),
-      westLng: bounds.west.clamp(FRANCE_WEST, FRANCE_EAST),
-      eastLng: bounds.east.clamp(FRANCE_WEST, FRANCE_EAST),
-      paddingDeg: kViewportPaddingDeg,
-    ).take(kMaxVisibleHexes);
+    // At high zoom the viewport is tiny, so a large padding wastes the entire
+    // take(kMaxVisibleHexes) budget on rows outside the visible area.
+    final paddingDeg = zoom >= 11 ? 0.05 : kViewportPaddingDeg;
+
+    // In test mode, render hexes wherever the camera is (no France clamping)
+    final hexIds = testMode
+        ? HexGridService.getHexIdsInBounds(
+            northLat: bounds.north,
+            southLat: bounds.south,
+            westLng: bounds.west,
+            eastLng: bounds.east,
+            paddingDeg: paddingDeg,
+          ).take(kMaxVisibleHexes)
+        : HexGridService.getHexIdsInBounds(
+            northLat: bounds.north.clamp(FRANCE_SOUTH, FRANCE_NORTH),
+            southLat: bounds.south.clamp(FRANCE_SOUTH, FRANCE_NORTH),
+            westLng: bounds.west.clamp(FRANCE_WEST, FRANCE_EAST),
+            eastLng: bounds.east.clamp(FRANCE_WEST, FRANCE_EAST),
+            paddingDeg: paddingDeg,
+          ).take(kMaxVisibleHexes);
 
     final locked = <Polygon>[];
     final unlocked = <Polygon>[];
@@ -159,18 +189,16 @@ class _MapScreenState extends ConsumerState<MapScreen>
       if (unlockedCells.contains(hexId)) {
         unlocked.add(Polygon(
           points: corners,
-          color: const Color(kColorUnlockedHex).withOpacity(0.80),
+          color: const Color(kColorUnlockedHex),
           borderColor: const Color(kColorAccent),
-          borderStrokeWidth: 0.8,
-          isFilled: true,
+          borderStrokeWidth: 1.5,
         ));
       } else {
         locked.add(Polygon(
           points: corners,
-          color: const Color(kColorLockedHex).withOpacity(0.85),
+          color: const Color(kColorLockedHex).withValues(alpha: 0.85),
           borderColor: const Color(kColorLockedHexBorder),
           borderStrokeWidth: 0.4,
-          isFilled: true,
         ));
       }
     }
@@ -183,7 +211,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
         return CircleMarker(
           point: LatLng(center.latitude, center.longitude),
           radius: 14,
-          color: Colors.deepOrange.withOpacity(0.12),
+          color: Colors.deepOrange.withValues(alpha: 0.12),
           borderColor: Colors.transparent,
           borderStrokeWidth: 0,
           useRadiusInMeter: false,
@@ -202,7 +230,8 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // ── Map tap ─────────────────────────────────────────────────────────────────
 
   void _onMapTap(TapPosition _, LatLng point) {
-    if (!HexGridService.isInFrance(point.latitude, point.longitude)) return;
+    final testMode = ref.read(testModeProvider);
+    if (!HexGridService.isInActiveArea(point.latitude, point.longitude, testMode: testMode)) return;
 
     final hexId = HexGridService.latLngToHexId(point.latitude, point.longitude);
     final center = HexGridService.hexIdToCenter(hexId);
@@ -231,6 +260,19 @@ class _MapScreenState extends ConsumerState<MapScreen>
     ref.listen(unlockedCellsProvider, (_, __) => _rebuildViewportHexes());
     final unlockedCount = ref.watch(unlockedCellsProvider).length;
 
+    final testMode = ref.watch(testModeProvider);
+    // Keep LocationService in sync with test mode state
+    LocationService.testMode = testMode;
+    // React to test mode toggling on — jump to the right area
+    ref.listen(testModeProvider, (prev, next) {
+      if (!_mapReady) return;
+      if (next) {
+        _animateTo(const LatLng(LINCOLN_CENTER_LAT, LINCOLN_CENTER_LNG), 13.0);
+      } else {
+        _animateTo(const LatLng(kFranceCenterLat, kFranceCenterLng), kInitialZoom);
+      }
+    });
+
     return Scaffold(
       backgroundColor: const Color(kColorBackground),
       body: Stack(
@@ -239,14 +281,28 @@ class _MapScreenState extends ConsumerState<MapScreen>
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter:
-                  const LatLng(kFranceCenterLat, kFranceCenterLng),
-              initialZoom: kInitialZoom,
+              initialCenter: testMode
+                  ? const LatLng(LINCOLN_CENTER_LAT, LINCOLN_CENTER_LNG)
+                  : const LatLng(kFranceCenterLat, kFranceCenterLng),
+              initialZoom: testMode ? 13.0 : kInitialZoom,
+              minZoom: 4.5,
               maxZoom: kMaxTileZoom.toDouble(),
-              onMapReady: () => setState(() {
-                _mapReady = true;
-                _rebuildViewportHexes();
-              }),
+              onMapReady: () {
+                setState(() {
+                  _mapReady = true;
+                  _rebuildViewportHexes();
+                });
+                // If test mode was already active when map loaded, jump to Lincoln
+                final isTestMode = ref.read(testModeProvider);
+                if (isTestMode) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _animateTo(
+                      const LatLng(LINCOLN_CENTER_LAT, LINCOLN_CENTER_LNG),
+                      13.0,
+                    );
+                  });
+                }
+              },
               onTap: _onMapTap,
               onPositionChanged: _onPositionChanged,
               interactionOptions: const InteractionOptions(
@@ -282,11 +338,26 @@ class _MapScreenState extends ConsumerState<MapScreen>
                       LatLng(FRANCE_SOUTH, FRANCE_EAST),
                       LatLng(FRANCE_SOUTH, FRANCE_WEST),
                     ],
-                    color: const Color(kColorBackground).withOpacity(0.82),
-                    isFilled: true,
+                    color: const Color(kColorBackground).withValues(alpha: 0.82),
                   ),
                 ],
               ),
+
+              // Lincoln fog overlay (test mode only)
+              if (testMode)
+                PolygonLayer(
+                  polygons: [
+                    Polygon(
+                      points: [
+                        LatLng(LINCOLN_NORTH, LINCOLN_WEST),
+                        LatLng(LINCOLN_NORTH, LINCOLN_EAST),
+                        LatLng(LINCOLN_SOUTH, LINCOLN_EAST),
+                        LatLng(LINCOLN_SOUTH, LINCOLN_WEST),
+                      ],
+                      color: const Color(kColorBackground).withValues(alpha: 0.82),
+                    ),
+                  ],
+                ),
 
               // Low-zoom conquest dots (zoom < 8): shows conquered cells
               // as glowing dots through the fog without rendering all hexes.
@@ -310,6 +381,31 @@ class _MapScreenState extends ConsumerState<MapScreen>
               // Heatmap density view (when toggled on)
               if (_heatmapEnabled)
                 CircleLayer(circles: _heatmapCircles),
+
+              // Live location dot — always on top
+              if (_currentPosition != null)
+                CircleLayer(
+                  circles: [
+                    // Accuracy halo
+                    CircleMarker(
+                      point: _currentPosition!,
+                      radius: 24,
+                      color: Colors.blue.withValues(alpha: 0.12),
+                      borderColor: Colors.blue.withValues(alpha: 0.3),
+                      borderStrokeWidth: 1,
+                      useRadiusInMeter: false,
+                    ),
+                    // Position dot
+                    CircleMarker(
+                      point: _currentPosition!,
+                      radius: 7,
+                      color: Colors.blue.shade400,
+                      borderColor: Colors.white,
+                      borderStrokeWidth: 2,
+                      useRadiusInMeter: false,
+                    ),
+                  ],
+                ),
             ],
           ),
 
@@ -327,7 +423,7 @@ class _MapScreenState extends ConsumerState<MapScreen>
             left: 0,
             right: 0,
             child: Center(
-              child: ProgressBadge(unlockedCount: unlockedCount),
+              child: ProgressBadge(unlockedCount: unlockedCount, testMode: testMode),
             ),
           ),
 
@@ -390,17 +486,29 @@ class _MapScreenState extends ConsumerState<MapScreen>
                 _MapIconButton(
                   icon: Icons.ios_share,
                   tooltip: 'Export & Share',
-                  onTap: () => context.go('/export'),
+                  onTap: () => context.push('/export'),
                 ),
                 const SizedBox(height: 6),
                 _MapIconButton(
                   icon: Icons.my_location,
                   tooltip: 'My Location',
                   onTap: () async {
+                    // Try last known position first for instant feedback
+                    final last = LocationService.lastPosition;
+                    if (last != null && mounted) {
+                      _animateTo(LatLng(last.latitude, last.longitude), 14);
+                      return;
+                    }
                     final pos = await LocationService.getCurrentPosition();
                     if (pos != null && mounted) {
-                      _animateTo(
-                          LatLng(pos.latitude, pos.longitude), 14);
+                      _animateTo(LatLng(pos.latitude, pos.longitude), 14);
+                    } else if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Location unavailable — check permissions'),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
                     }
                   },
                 ),
@@ -414,6 +522,31 @@ class _MapScreenState extends ConsumerState<MapScreen>
             left: 16,
             child: EmergencyFAB(),
           ),
+
+          // ── Test mode banner ─────────────────────────────────────────────
+          if (testMode)
+            Positioned(
+              bottom: 170,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    '🧪 TEST MODE — Lincoln NE',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -438,8 +571,8 @@ class _TopBar extends ConsumerWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(kColorBackground).withOpacity(0.9),
-            const Color(kColorBackground).withOpacity(0.0),
+            const Color(kColorBackground).withValues(alpha: 0.9),
+            const Color(kColorBackground).withValues(alpha: 0.0),
           ],
         ),
       ),
@@ -507,10 +640,10 @@ class _MapIconButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A2E),
             shape: BoxShape.circle,
-            border: Border.all(color: color.withOpacity(0.6), width: 1.5),
+            border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.4),
+                color: Colors.black.withValues(alpha: 0.4),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),

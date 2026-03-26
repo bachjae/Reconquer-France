@@ -159,13 +159,12 @@ class _RoutePlannerScreenState extends ConsumerState<RoutePlannerScreen> {
                     final isUnlocked = unlockedCells.contains(hexId);
                     return Polygon(
                       points: corners,
-                      isFilled: true,
                       color: isUnlocked
-                          ? const Color(kColorUnlockedHex).withOpacity(0.55)
-                          : const Color(kColorAccent).withOpacity(0.22),
+                          ? const Color(kColorUnlockedHex).withValues(alpha: 0.55)
+                          : const Color(kColorAccent).withValues(alpha: 0.22),
                       borderColor: isUnlocked
                           ? const Color(kColorUnlockedHex)
-                          : const Color(kColorAccent).withOpacity(0.7),
+                          : const Color(kColorAccent).withValues(alpha: 0.7),
                       borderStrokeWidth: 1.2,
                     );
                   }).toList(),
@@ -269,7 +268,7 @@ class _StatsPanel extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(
           16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF12121A).withOpacity(0.95),
+        color: const Color(0xFF12121A).withValues(alpha: 0.95),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         border: const Border(
           top: BorderSide(color: Color(0xFF2A2A4E)),

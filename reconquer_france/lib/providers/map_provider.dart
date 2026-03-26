@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/sync_service.dart';
 import '../services/location_service.dart';
 import '../core/constants.dart';
@@ -92,7 +92,9 @@ final friendsCellsProvider =
       }, onError: (_) {});
       subs.add(sub);
     }
-  }).catchError((_) => controller.add({}));
+  }).catchError((_) {
+    controller.add({});
+  });
 
   // Cancel all subscriptions when provider is disposed
   ref.onDispose(() {
@@ -128,7 +130,7 @@ final groupCellsProvider =
           .doc(tripId)
           .get();
 
-      final groupId = (tripDoc.data() as Map<String, dynamic>?)?['groupId'] as String?;
+      final groupId = tripDoc.data()?['groupId'] as String?;
       if (groupId == null) {
         controller.add({});
         return;
@@ -136,7 +138,7 @@ final groupCellsProvider =
 
       final groupDoc = await firestore.collection('groups').doc(groupId).get();
       final memberIds = List<String>.from(
-          (groupDoc.data() as Map<String, dynamic>?)?['memberIds'] as List? ?? []);
+          groupDoc.data()?['memberIds'] as List? ?? []);
 
       for (final memberId in memberIds) {
         if (memberId == user.uid) continue;

@@ -28,8 +28,8 @@ class AuthService {
 
       final userCred = await _auth.signInWithCredential(credential);
 
-      // Create/update Firestore profile
-      await _ensureUserProfile(userCred.user!);
+      // Create profile fire-and-forget — don't block or fail auth
+      _ensureUserProfile(userCred.user!).catchError((_) {});
 
       return userCred;
     } catch (e) {
@@ -51,47 +51,52 @@ class AuthService {
     required String username,
     required String avatarEmoji,
   }) async {
-    // Check if username is taken
-    final usernameCheck = await _firestore
-        .collection('usernames')
-        .doc(username.toLowerCase())
-        .get();
-
-    if (usernameCheck.exists) {
-      throw Exception('Username already taken');
-    }
-
+    // Create auth account first so Firestore rules pass (requires authentication)
     final userCred = await _auth.createUserWithEmailAndPassword(
         email: email, password: password);
 
-    await userCred.user!.updateDisplayName(displayName);
+    try {
+      await userCred.user!.updateDisplayName(displayName);
 
-    // Create profile
-    final profile = UserProfile(
-      uid: userCred.user!.uid,
-      displayName: displayName,
-      username: username.toLowerCase(),
-      avatarEmoji: avatarEmoji,
-      createdAt: DateTime.now(),
-      friendIds: [],
-    );
+      // Now authenticated — check if username is taken
+      final usernameCheck = await _firestore
+          .collection('usernames')
+          .doc(username.toLowerCase())
+          .get();
 
-    final batch = _firestore.batch();
+      if (usernameCheck.exists) {
+        await userCred.user!.delete();
+        throw Exception('Username already taken');
+      }
 
-    batch.set(
-      _firestore.collection('users').doc(userCred.user!.uid),
-      profile.toFirestore(),
-    );
+      final profile = UserProfile(
+        uid: userCred.user!.uid,
+        displayName: displayName,
+        username: username.toLowerCase(),
+        avatarEmoji: avatarEmoji,
+        createdAt: DateTime.now(),
+        friendIds: [],
+      );
 
-    // Reserve username
-    batch.set(
-      _firestore.collection('usernames').doc(username.toLowerCase()),
-      {'uid': userCred.user!.uid},
-    );
+      final batch = _firestore.batch();
+      batch.set(
+        _firestore.collection('users').doc(userCred.user!.uid),
+        profile.toFirestore(),
+      );
+      batch.set(
+        _firestore.collection('usernames').doc(username.toLowerCase()),
+        {'uid': userCred.user!.uid},
+      );
+      await batch.commit();
 
-    await batch.commit();
-
-    return userCred;
+      return userCred;
+    } catch (e) {
+      // Clean up orphaned auth account if profile creation fails
+      if (e.toString() != 'Exception: Username already taken') {
+        await userCred.user?.delete();
+      }
+      rethrow;
+    }
   }
 
   Future<void> signOut() async {

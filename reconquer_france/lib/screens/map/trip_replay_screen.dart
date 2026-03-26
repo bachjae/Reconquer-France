@@ -151,10 +151,9 @@ class _TripReplayScreenState extends State<TripReplayScreen>
         .toList();
     _polygons.add(Polygon(
       points: corners,
-      color: const Color(kColorUnlockedHex).withOpacity(0.75),
+      color: const Color(kColorUnlockedHex).withValues(alpha: 0.75),
       borderColor: const Color(kColorAccent),
       borderStrokeWidth: 0.8,
-      isFilled: true,
     ));
 
     setState(() {});
@@ -178,10 +177,9 @@ class _TripReplayScreenState extends State<TripReplayScreen>
           .toList();
       _polygons.add(Polygon(
         points: corners,
-        color: const Color(kColorUnlockedHex).withOpacity(0.75),
+        color: const Color(kColorUnlockedHex).withValues(alpha: 0.75),
         borderColor: const Color(kColorAccent),
         borderStrokeWidth: 0.8,
-        isFilled: true,
       ));
     }
     setState(() {
@@ -250,11 +248,11 @@ class _TripReplayScreenState extends State<TripReplayScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
+                        color: Colors.black.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                             color:
-                                const Color(kColorAccent).withOpacity(0.5)),
+                                const Color(kColorAccent).withValues(alpha: 0.5)),
                       ),
                       child: Text(
                         '${_revealedCells.length} / ${_timedCells.length} cells',

@@ -83,11 +83,9 @@ class AppTheme {
       colorScheme: const ColorScheme.dark(
         primary: accent,
         secondary: accent,
-        background: background,
         surface: surface,
         onPrimary: background,
         onSecondary: background,
-        onBackground: Colors.white,
         onSurface: Colors.white,
       ),
       textTheme: textTheme,
@@ -97,7 +95,7 @@ class AppTheme {
         titleTextStyle: textTheme.headlineMedium,
         iconTheme: const IconThemeData(color: accent),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cardColor,
         elevation: 0,
         shape: RoundedRectangleBorder(

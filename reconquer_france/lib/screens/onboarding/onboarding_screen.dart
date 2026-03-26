@@ -157,41 +157,47 @@ class _OnboardingPageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 80, 32, 160),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Illustration
-          SizedBox(
-            height: 280,
-            width: double.infinity,
-            child: page.illustration,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final illustrationH = (constraints.maxHeight * 0.36).clamp(140.0, 260.0);
+        final vGap = (constraints.maxHeight * 0.04).clamp(8.0, 32.0);
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(32, vGap * 2, 32, 180),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                height: illustrationH,
+                width: double.infinity,
+                child: page.illustration,
+              ),
+              SizedBox(height: vGap * 1.2),
+              Text(
+                page.emoji,
+                style: const TextStyle(fontSize: 44),
+              ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
+              SizedBox(height: vGap * 0.6),
+              Text(
+                page.title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: const Color(kColorAccent),
+                      fontWeight: FontWeight.bold,
+                    ),
+                textAlign: TextAlign.center,
+              ).animate().fadeIn(delay: 200.ms),
+              SizedBox(height: vGap * 0.6),
+              Text(
+                page.subtitle,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.white70,
+                      height: 1.5,
+                    ),
+                textAlign: TextAlign.center,
+              ).animate().fadeIn(delay: 400.ms),
+            ],
           ),
-          const SizedBox(height: 48),
-          Text(
-            page.emoji,
-            style: const TextStyle(fontSize: 48),
-          ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
-          const SizedBox(height: 16),
-          Text(
-            page.title,
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: const Color(kColorAccent),
-                ),
-            textAlign: TextAlign.center,
-          ).animate().fadeIn(delay: 200.ms),
-          const SizedBox(height: 16),
-          Text(
-            page.subtitle,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white70,
-                  height: 1.6,
-                ),
-            textAlign: TextAlign.center,
-          ).animate().fadeIn(delay: 400.ms),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -255,7 +261,7 @@ class _ExploreHexPainter extends CustomPainter {
       ..color = const Color(kColorUnlockedHex)
       ..style = PaintingStyle.fill;
     final glowPaint = Paint()
-      ..color = const Color(kColorUnlockedHex).withOpacity(0.4)
+      ..color = const Color(kColorUnlockedHex).withValues(alpha: 0.4)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
@@ -416,7 +422,7 @@ class CrewIllustration extends StatelessWidget {
                     height: 12,
                     margin: const EdgeInsets.all(1),
                     decoration: BoxDecoration(
-                      color: colors[i].withOpacity(0.7),
+                      color: colors[i].withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   );

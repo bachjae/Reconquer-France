@@ -119,6 +119,7 @@ enum AlertType { corn, husker }
 class FriendRequest {
   final String id;
   final String fromUid;
+  final String fromUsername;
   final String toUsername;
   final FriendRequestStatus status;
   final DateTime createdAt;
@@ -126,6 +127,7 @@ class FriendRequest {
   const FriendRequest({
     required this.id,
     required this.fromUid,
+    required this.fromUsername,
     required this.toUsername,
     required this.status,
     required this.createdAt,
@@ -136,6 +138,7 @@ class FriendRequest {
     return FriendRequest(
       id: doc.id,
       fromUid: data['fromUid'] as String? ?? '',
+      fromUsername: data['fromUsername'] as String? ?? '',
       toUsername: data['toUsername'] as String? ?? '',
       status: _parseStatus(data['status'] as String?),
       createdAt:

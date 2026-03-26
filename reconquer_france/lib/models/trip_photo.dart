@@ -37,7 +37,7 @@ class TripPhoto extends HiveObject {
   @HiveField(10)
   final String? cityName; // reverse geocoded
 
-  const TripPhoto({
+  TripPhoto({
     required this.id,
     required this.assetId,
     required this.localPath,

@@ -18,12 +18,12 @@ class StreakBadge extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: active
-              ? const Color(kColorAccent).withOpacity(0.15)
+              ? const Color(kColorAccent).withValues(alpha: 0.15)
               : const Color(0xFF1A1A2E),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: active
-                ? const Color(kColorAccent).withOpacity(0.6)
+                ? const Color(kColorAccent).withValues(alpha: 0.6)
                 : const Color(0xFF2A2A4E),
           ),
         ),
@@ -148,9 +148,9 @@ class _MiniStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(
           children: [
@@ -193,7 +193,7 @@ class _DayDot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: active
-                ? const Color(kColorAccent).withOpacity(0.85)
+                ? const Color(kColorAccent).withValues(alpha: 0.85)
                 : const Color(0xFF2A2A4E),
           ),
           child: Center(

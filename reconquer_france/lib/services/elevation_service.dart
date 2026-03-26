@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'package:hive_flutter/hive_flutter.dart';
 
 /// Tracks altitude and terrain statistics across the trip.
 class ElevationService {
   static late Box _box;
+
+  static final _updateController = StreamController<void>.broadcast();
+  /// Fires after each altitude sample is recorded — used by ElevationNotifier.
+  static Stream<void> get onUpdate => _updateController.stream;
 
   static const _keyMaxAltitude = 'maxAltitude';
   static const _keyMinAltitude = 'minAltitude';
@@ -59,6 +64,7 @@ class ElevationService {
     _lastAltitude = altitude;
     await _box.put(_keyLastAltitude, altitude);
     await _box.put(_keySamplesCount, samplesCount + 1);
+    _updateController.add(null);
   }
 
   static Future<void> reset() async {

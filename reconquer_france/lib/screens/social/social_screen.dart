@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
 import '../../providers/social_provider.dart';
-import '../../providers/auth_provider.dart';
+
 import 'friends_tab.dart';
 import 'leaderboard_tab.dart';
 
@@ -60,7 +60,7 @@ class _SocialScreenState extends ConsumerState<SocialScreen>
           controller: _tabController,
           children: [
             const FriendsTab(),
-            LeaderboardTab(group: group.value),
+            LeaderboardTab(group: group.valueOrNull),
           ],
         ),
       ),

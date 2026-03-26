@@ -1,10 +1,10 @@
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart' as FMTC;
-import 'package:latlong2/latlong2.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../core/constants.dart';
 
-/// Manages offline tile caching for France using flutter_map_tile_caching (FMTC).
+/// Manages offline tile caching for France using flutter_map_tile_caching (FMTC) v9.
 /// No API key or credit card required — uses free CartoDB Dark Matter tiles.
 class OfflineTileService {
   static const _storeName = 'reconquer_france_tiles';
@@ -14,23 +14,18 @@ class OfflineTileService {
     _box = await Hive.openBox('offline_tiles');
     // Ensure the FMTC tile store exists
     try {
-      final store = FMTC.FMTC.instance(_storeName);
-      final ready = await store.manage.ready;
-      if (!ready) {
-        await store.manage.createAsync();
-      }
+      final store = FMTCStore(_storeName);
+      await store.manage.create();
     } catch (_) {
       // FMTC init failure is non-fatal; online tiles still work
     }
   }
 
   /// Returns a tile provider that serves cached tiles first, falls back online.
-  static FMTC.FMTCTileProvider get tileProvider {
-    return FMTC.FMTC.instance(_storeName).getTileProvider(
-      settings: const FMTC.FMTCTileProviderSettings(
-        behavior: FMTC.CacheBehavior.cacheFirst,
-        cachedValidDuration: Duration(days: 14),
-        maxStoreLength: 0, // unlimited
+  static TileProvider get tileProvider {
+    return FMTCStore(_storeName).getTileProvider(
+      settings: FMTCTileProviderSettings(
+        behavior: CacheBehavior.cacheFirst,
       ),
     );
   }
@@ -49,10 +44,10 @@ class OfflineTileService {
     required void Function(String error) onError,
   }) async {
     try {
-      final store = FMTC.FMTC.instance(_storeName);
+      final store = FMTCStore(_storeName);
 
       // France bounding box
-      final region = FMTC.RectangleRegion(
+      final region = RectangleRegion(
         LatLngBounds(
           const LatLng(51.1, 9.6), // NE
           const LatLng(41.3, -5.2), // SW
@@ -66,12 +61,6 @@ class OfflineTileService {
           urlTemplate: kTileUrlTemplate,
           subdomains: kTileSubdomains,
         ),
-        parallelThreads: 3,
-        maxBufferLength: 200,
-        skipExistingTiles: true,
-        skipSeaTiles: true,
-        maxReportInterval: const Duration(seconds: 1),
-        instanceData: 'france-download',
       );
 
       await for (final progress
@@ -97,15 +86,15 @@ class OfflineTileService {
   /// Cancel any active download.
   static Future<void> cancelDownload() async {
     try {
-      await FMTC.FMTC.instance(_storeName).download.cancel();
+      await FMTCStore(_storeName).download.cancel();
     } catch (_) {}
   }
 
   /// Delete all cached tiles for France and reset download state.
   static Future<void> removeFrance() async {
     try {
-      await FMTC.FMTC.instance(_storeName).manage.deleteAsync();
-      await FMTC.FMTC.instance(_storeName).manage.createAsync();
+      await FMTCStore(_storeName).manage.delete();
+      await FMTCStore(_storeName).manage.create();
     } catch (_) {}
     await _box.put('france_downloaded', false);
     await _box.put('france_progress', 0.0);
