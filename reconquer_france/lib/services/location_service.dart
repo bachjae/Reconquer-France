@@ -81,14 +81,31 @@ class LocationService {
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationTitle: 'Reconquer France',
           notificationText: 'Tracking location to unlock hexes',
-          // enableWakeLock keeps the CPU alive for processing; the medium
-          // accuracy setting keeps GPS hardware off most of the time.
-          enableWakeLock: true,
+          // Wake lock disabled — the foreground service notification keeps
+          // the process alive; we don't need the CPU awake between 50 m
+          // distance-filter events.
+          enableWakeLock: false,
           notificationIcon: AndroidResource(
             name: 'ic_launcher',
             defType: 'mipmap',
           ),
         ),
+      );
+    } else if (!kIsWeb && Platform.isIOS) {
+      // AppleSettings lets us opt into the always-on background location
+      // mode and prevent iOS from pausing updates when it thinks the user
+      // has stopped moving.
+      settings = AppleSettings(
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 50,
+        // fitness = walking/cycling — tells CoreLocation we care about
+        // movement on foot, which prevents automatic pausing.
+        activityType: ActivityType.fitness,
+        // Never let iOS pause updates automatically; we rely on the
+        // distance filter for power savings instead.
+        pauseLocationUpdatesAutomatically: false,
+        // Show the blue indicator bar so users know tracking is active.
+        showsBackgroundLocationIndicator: true,
       );
     } else {
       settings = const LocationSettings(

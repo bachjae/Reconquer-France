@@ -14,7 +14,47 @@ import '../models/trip_photo.dart';
 class PhotoService {
   static const _uuid = Uuid();
 
-  /// Import photos from device library with EXIF GPS parsing
+  // SharedPreferences key for the last successful import timestamp.
+  static const _kLastImportKey = 'photo_last_import_ms';
+
+  // Held so the callback can be removed when auto-import is stopped.
+  static ValueChanged<MethodCall>? _changeCallback;
+
+  // ── Auto-import (background library listener) ─────────────────────────────
+
+  /// Register a photo-library change listener so new photos taken on the
+  /// device are automatically imported without any user action.
+  /// Call once at app startup (main.dart). Safe to call multiple times.
+  static Future<void> startAutoImport(String tripId) async {
+    if (_changeCallback != null) return; // already running
+
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth) return;
+
+    _changeCallback = (_) async {
+      // Library changed — pull in anything new since last import.
+      await importPhotosFromLibrary(tripId);
+    };
+    PhotoManager.addChangeCallback(_changeCallback!);
+    PhotoManager.startChangeNotify();
+  }
+
+  /// Stop listening for library changes (call on app dispose / logout).
+  static void stopAutoImport() {
+    if (_changeCallback != null) {
+      PhotoManager.removeChangeCallback(_changeCallback!);
+      _changeCallback = null;
+    }
+    PhotoManager.stopChangeNotify();
+  }
+
+  // ── Import ────────────────────────────────────────────────────────────────
+
+  /// Import photos from the device library with EXIF GPS parsing.
+  ///
+  /// Incremental: only photos taken *after* the last successful import are
+  /// processed, and photos already stored (matched by assetId) are skipped.
+  /// This makes repeated calls fast and prevents duplicates.
   static Future<List<TripPhoto>> importPhotosFromLibrary(String tripId) async {
     final permission = await PhotoManager.requestPermissionExtend();
     if (!permission.isAuth) {
@@ -22,19 +62,39 @@ class PhotoService {
       return [];
     }
 
-    // onlyAll:true returns the virtual "All Photos" album on both Android and iOS.
+    final prefs = await SharedPreferences.getInstance();
+    final lastMs = prefs.getInt(_kLastImportKey);
+    final lastDate = lastMs != null
+        ? DateTime.fromMillisecondsSinceEpoch(lastMs)
+        : null;
+
+    // Collect already-imported assetIds to skip duplicates.
+    final existingIds = SyncService.getAllLocalPhotos()
+        .map((p) => p['assetId'] as String? ?? '')
+        .toSet();
+
+    // onlyAll:true returns the virtual "All Photos" album on both platforms.
     final albums = await PhotoManager.getAssetPathList(
       type: RequestType.image,
       onlyAll: true,
     );
     if (albums.isEmpty) return [];
 
-    final allPhotos = await albums.first
-        .getAssetListRange(start: 0, end: 9999);
+    final allPhotos =
+        await albums.first.getAssetListRange(start: 0, end: 9999);
+
+    // Only process assets we haven't seen before.
+    final toProcess = allPhotos.where((asset) {
+      if (existingIds.contains(asset.id)) return false;
+      if (lastDate != null && !asset.createDateTime.isAfter(lastDate)) {
+        return false;
+      }
+      return true;
+    }).toList();
 
     final List<TripPhoto> imported = [];
 
-    for (final asset in allPhotos) {
+    for (final asset in toProcess) {
       final file = await asset.file;
       if (file == null) continue;
 
@@ -46,9 +106,15 @@ class PhotoService {
           await SyncService.unlockCell(tripPhoto.hexId, tripId);
         }
       } catch (_) {
-        // Skip photos that fail EXIF parsing
+        // Skip photos that fail EXIF parsing / processing.
       }
     }
+
+    // Advance the watermark so the next call only looks at truly new photos.
+    await prefs.setInt(
+      _kLastImportKey,
+      DateTime.now().millisecondsSinceEpoch,
+    );
 
     return imported;
   }

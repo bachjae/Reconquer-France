@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'services/sync_service.dart';
 import 'services/notification_service.dart';
 import 'services/offline_tile_service.dart';
+import 'services/photo_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -45,6 +46,11 @@ void main() async {
 
   // Initialize notifications
   await NotificationService.initialize();
+
+  // Start watching the device photo library for new images. This runs in the
+  // background and auto-imports photos to France hexes whenever a new photo
+  // is taken, without any user action required.
+  await PhotoService.startAutoImport('local');
 
   // Handle FCM background messages
   FirebaseMessaging.onBackgroundMessage(_backgroundMessageHandler);

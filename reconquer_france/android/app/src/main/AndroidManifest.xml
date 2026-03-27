@@ -80,5 +80,15 @@
 
         <!-- Husker notification channel is created programmatically in NotificationService -->
 
+        <!-- Resume location tracking automatically after device reboot -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>
