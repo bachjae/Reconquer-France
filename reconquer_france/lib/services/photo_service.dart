@@ -20,6 +20,33 @@ class PhotoService {
   // Held so the callback can be removed when auto-import is stopped.
   static ValueChanged<MethodCall>? _changeCallback;
 
+  // ── Permission ────────────────────────────────────────────────────────────
+
+  /// Request photo library access upfront and guide the user to grant it.
+  ///
+  /// On iOS 14+ when the user chose "Limited" access, presents the native
+  /// photo-picker so they can expand the allowed set or switch to "All Photos"
+  /// in Settings. Returns true if any level of access was granted.
+  static Future<bool> requestPhotoPermission() async {
+    final state = await PhotoManager.requestPermissionExtend();
+
+    if (state == PermissionState.limited) {
+      // "Limited" means the user selected specific photos. Show the native
+      // limited-access management UI so they can choose "All Photos".
+      await PhotoManager.presentLimited();
+      // Re-check after the picker dismisses.
+      final recheck = await PhotoManager.requestPermissionExtend();
+      return recheck.isAuth;
+    }
+
+    if (!state.isAuth) {
+      // Permanently denied — open Settings so the user can change it.
+      await PhotoManager.openSetting();
+    }
+
+    return state.isAuth;
+  }
+
   // ── Auto-import (background library listener) ─────────────────────────────
 
   /// Register a photo-library change listener so new photos taken on the
