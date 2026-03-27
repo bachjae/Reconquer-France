@@ -7,6 +7,7 @@ import '../../providers/photo_provider.dart';
 import '../../providers/map_provider.dart';
 import '../../services/hex_grid_service.dart';
 import 'hex_stories_screen.dart';
+import 'trip_collection_screen.dart';
 
 class GalleryScreen extends ConsumerStatefulWidget {
   const GalleryScreen({super.key});
@@ -56,6 +57,23 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             actions: [
+              // Trip Collections book
+              IconButton(
+                onPressed: () {
+                  final photos = ref.read(allPhotosProvider);
+                  if (photos.isEmpty) return;
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) =>
+                        TripCollectionsSheet(photos: photos),
+                  );
+                },
+                icon: const Icon(Icons.collections_bookmark_outlined,
+                    color: Color(kColorAccent)),
+                tooltip: 'Trip Collections',
+              ),
               // Stories button
               IconButton(
                 onPressed: () => Navigator.push(
