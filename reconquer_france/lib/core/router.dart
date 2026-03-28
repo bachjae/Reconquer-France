@@ -124,8 +124,6 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  int _currentIndex = 0;
-
   final List<({String route, IconData icon, String label})> _tabs = [
     (route: '/map', icon: Icons.map_outlined, label: 'Map'),
     (route: '/gallery', icon: Icons.photo_library_outlined, label: 'Gallery'),
@@ -135,6 +133,9 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final currentIndex = _tabs.indexWhere((t) => location.startsWith(t.route));
+
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: Container(
@@ -145,9 +146,8 @@ class _MainShellState extends ConsumerState<MainShell> {
           ),
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex,
+          currentIndex: currentIndex < 0 ? 0 : currentIndex,
           onTap: (index) {
-            setState(() => _currentIndex = index);
             context.go(_tabs[index].route);
           },
           items: _tabs

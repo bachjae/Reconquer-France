@@ -253,6 +253,13 @@ class _RoleManagementSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final leaderboard = ref.watch(groupLeaderboardProvider(group.id));
+    final entries = leaderboard.value ?? [];
+    final nameMap = {
+      for (final e in entries)
+        e.uid: '${e.avatarEmoji} ${e.displayName} (@${e.username})'
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -270,6 +277,7 @@ class _RoleManagementSection extends ConsumerWidget {
         ...group.memberIds.map((uid) {
           final role = group.roleOf(uid);
           final isCreator = uid == group.createdBy;
+          final displayName = nameMap[uid] ?? uid;
 
           return ListTile(
             contentPadding: EdgeInsets.zero,
@@ -283,7 +291,7 @@ class _RoleManagementSection extends ConsumerWidget {
               ),
             ),
             title: Text(
-              isCreator ? '$uid (admin)' : uid,
+              isCreator ? '$displayName (admin)' : displayName,
               style: Theme.of(context).textTheme.bodyMedium,
               overflow: TextOverflow.ellipsis,
             ),

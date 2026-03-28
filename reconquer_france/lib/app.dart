@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme.dart';
 import 'core/router.dart';
+import 'providers/map_provider.dart';
 import 'services/photo_service.dart';
 
 class ReconquerFranceApp extends ConsumerStatefulWidget {
@@ -38,7 +39,8 @@ class _ReconquerFranceAppState extends ConsumerState<ReconquerFranceApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      PhotoService.importPhotosFromLibrary('local');
+      final tripId = ref.read(currentTripIdProvider) ?? 'local';
+      PhotoService.importPhotosFromLibrary(tripId);
     }
   }
 

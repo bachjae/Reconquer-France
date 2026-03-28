@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -136,8 +137,12 @@ final myGroupAlertsProvider = StreamProvider<List<GroupAlert>>((ref) {
       .snapshots()
       .handleError((_) {})
       .map((snap) {
-    final all =
-        snap.docs.map((d) => GroupAlert.fromFirestore(d)).toList();
+    final all = <GroupAlert>[];
+    for (final d in snap.docs) {
+      try {
+        all.add(GroupAlert.fromFirestore(d));
+      } catch (_) {}
+    }
     if (isLeader) return all;
     // Students only see alerts not targeted exclusively at leaders
     return all.where((a) => a.recipientType == 'all').toList();
@@ -156,9 +161,15 @@ final groupAlertsProvider =
       .limit(20)
       .snapshots()
       .handleError((_) {})
-      .map((snap) => snap.docs
-          .map((d) => GroupAlert.fromFirestore(d))
-          .toList());
+      .map((snap) {
+    final alerts = <GroupAlert>[];
+    for (final d in snap.docs) {
+      try {
+        alerts.add(GroupAlert.fromFirestore(d));
+      } catch (_) {}
+    }
+    return alerts;
+  });
 });
 
 /// Social actions
@@ -279,8 +290,7 @@ class SocialActions {
 
   static String _generateInviteCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    return List.generate(6, (i) => chars[(random + i * 7) % chars.length])
-        .join();
+    final random = Random.secure();
+    return List.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 }

@@ -12,6 +12,7 @@ import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/photo_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/hex_grid_service.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
   const ExportScreen({super.key});
@@ -384,14 +385,9 @@ class _ExportMapPainter extends CustomPainter {
 
     for (final hexId in unlockedCells.take(500)) {
       try {
-        final parts = hexId.split(':');
-        if (parts.length != 2) continue;
-        // Approximate position
-        final col = double.tryParse(parts[0]) ?? 0;
-        final row = double.tryParse(parts[1]) ?? 0;
-        // Normalize to France bounds
-        final lat = row * HEX_SIZE_KM / 111.0;
-        final lng = col * HEX_SIZE_KM / 111.0;
+        final center = HexGridService.hexIdToCenter(hexId);
+        final lat = center.latitude;
+        final lng = center.longitude;
         final x = ((lng - FRANCE_WEST) / (FRANCE_EAST - FRANCE_WEST)) * size.width;
         final y = (1 - (lat - FRANCE_SOUTH) / (FRANCE_NORTH - FRANCE_SOUTH)) * size.height;
         canvas.drawCircle(Offset(x, y), 3, cellPaint);

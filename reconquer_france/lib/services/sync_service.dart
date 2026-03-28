@@ -121,7 +121,7 @@ class SyncService {
             tripDoc.data()?['totalCellsUnlocked'] as int? ?? 0;
 
         if (currentCount >= kMaxUnlockedCellsPerDoc) {
-          // Use subcollection chunks
+          // Use subcollection chunks for the cell list
           final chunkIndex = currentCount ~/ kMaxUnlockedCellsPerDoc;
           final chunkRef = ref
               .collection('cell_chunks')
@@ -131,6 +131,12 @@ class SyncService {
             {'cells': FieldValue.arrayUnion(hexIds)},
             SetOptions(merge: true),
           );
+          // Still update the stats counters on the trip doc
+          batch.update(ref, {
+            'totalCellsUnlocked': FieldValue.increment(hexIds.length),
+            'percentFrance':
+                (currentCount + hexIds.length) / TOTAL_FRANCE_HEXES * 100,
+          });
         } else {
           batch.update(ref, {
             'unlockedCells': FieldValue.arrayUnion(hexIds),

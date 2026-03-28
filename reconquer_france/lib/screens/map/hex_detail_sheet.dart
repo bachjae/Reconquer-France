@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
@@ -168,7 +169,7 @@ class HexDetailSheet extends ConsumerWidget {
                         child: OutlinedButton.icon(
                           onPressed: () {
                             Navigator.pop(context);
-                            // Navigate to camera
+                            context.push('/camera');
                           },
                           icon: const Icon(Icons.add_a_photo_outlined),
                           label: const Text('Add Photo Here'),

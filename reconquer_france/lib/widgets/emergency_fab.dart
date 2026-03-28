@@ -15,8 +15,6 @@ class EmergencyFAB extends ConsumerStatefulWidget {
 }
 
 class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
-  final ValueNotifier<bool> _isOpen = ValueNotifier(false);
-
   Future<void> _sendCornAlert() async {
     final profile = ref.read(refreshableProfileProvider).value;
     if (profile == null) return;
@@ -37,12 +35,20 @@ class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
     if (message == null) return;
 
     final pos = LocationService.lastPosition;
+    if (pos == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Waiting for GPS fix — try again in a moment.')),
+        );
+      }
+      return;
+    }
 
     await NotificationService.sendCornAlert(
       groupId: group.id,
       senderName: profile.displayName,
-      lat: pos?.latitude ?? 0,
-      lng: pos?.longitude ?? 0,
+      lat: pos.latitude,
+      lng: pos.longitude,
       message: message,
     );
 
@@ -104,12 +110,20 @@ class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
     if (confirm != true) return;
 
     final pos = LocationService.lastPosition;
+    if (pos == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Waiting for GPS fix — try again in a moment.')),
+        );
+      }
+      return;
+    }
 
     await NotificationService.sendHuskerAlert(
       groupId: group.id,
       senderName: profile.displayName,
-      lat: pos?.latitude ?? 0,
-      lng: pos?.longitude ?? 0,
+      lat: pos.latitude,
+      lng: pos.longitude,
     );
 
     if (mounted) {
@@ -164,7 +178,6 @@ class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
   @override
   Widget build(BuildContext context) {
     return SpeedDial(
-      openCloseDial: _isOpen,
       backgroundColor: const Color(0xFF12121A),
       foregroundColor: Colors.white,
       overlayColor: Colors.black,

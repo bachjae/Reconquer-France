@@ -107,8 +107,12 @@ class _FriendsTabState extends ConsumerState<FriendsTab> {
               ],
             );
           },
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('Could not load requests: $e',
+                style: const TextStyle(color: Colors.white54)),
+          ),
         ),
 
         // Group section
@@ -193,17 +197,25 @@ class _GroupSectionState extends ConsumerState<_GroupSection> {
 
   Future<void> _joinGroup() async {
     if (_inviteCodeCtrl.text.isEmpty) return;
-    final group = await SocialActions.joinGroupByCode(_inviteCodeCtrl.text.trim());
-    _inviteCodeCtrl.clear();
-    setState(() => _showJoin = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(group != null
-              ? 'Joined ${group.name}!'
-              : 'Invalid invite code'),
-        ),
-      );
+    try {
+      final group = await SocialActions.joinGroupByCode(_inviteCodeCtrl.text.trim());
+      _inviteCodeCtrl.clear();
+      setState(() => _showJoin = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(group != null
+                ? 'Joined ${group.name}!'
+                : 'Invalid invite code'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error joining group: $e')),
+        );
+      }
     }
   }
 
