@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
+import '../../providers/social_provider.dart';
+import '../../services/offline_tile_service.dart';
 import '../../services/sync_service.dart';
 
 class TripSetupScreen extends ConsumerStatefulWidget {
@@ -27,11 +29,14 @@ class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
 
   bool _showJoinGroup = false;
   final _inviteCodeCtrl = TextEditingController();
+  bool _isAlreadyDownloaded = false;
+  String _downloadStatus = '';
 
   @override
   void initState() {
     super.initState();
     _nameCtrl.text = 'France ${DateTime.now().year}';
+    _isAlreadyDownloaded = OfflineTileService.isFranceDownloaded;
   }
 
   @override
@@ -51,6 +56,21 @@ class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
 
       final tripId = const Uuid().v4();
 
+      // Validate invite code before creating anything
+      String? groupId;
+      final inviteCode = _inviteCodeCtrl.text.trim().toUpperCase();
+      if (_showJoinGroup && inviteCode.isNotEmpty) {
+        final groupSnap = await FirebaseFirestore.instance
+            .collection('groups')
+            .where('inviteCode', isEqualTo: inviteCode)
+            .limit(1)
+            .get();
+        if (groupSnap.docs.isEmpty) {
+          throw Exception('Invite code "$inviteCode" not found — check with your group leader.');
+        }
+        groupId = groupSnap.docs.first.id;
+      }
+
       // Create trip in Firestore
       await FirebaseFirestore.instance
           .collection('users')
@@ -60,13 +80,18 @@ class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
           .set({
         'name': _nameCtrl.text.trim(),
         'uid': uid,
-        'groupId': null,
+        'groupId': groupId,
         'startDate': Timestamp.fromDate(_startDate),
         'endDate': _endDate != null ? Timestamp.fromDate(_endDate!) : null,
         'unlockedCells': [],
         'totalCellsUnlocked': 0,
         'percentFrance': 0.0,
       });
+
+      // Join the group now that the trip exists
+      if (groupId != null) {
+        await SocialActions.joinGroupByCode(inviteCode);
+      }
 
       // Update user's active trip
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
@@ -115,28 +140,46 @@ class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
     }
   }
 
-  Future<void> _simulateMapDownload() async {
+  Future<void> _downloadMap() async {
     setState(() {
       _downloadingMap = true;
       _downloadProgress = 0.0;
+      _downloadStatus = 'Starting download…';
     });
 
-    // Simulate download progress
-    for (int i = 1; i <= 100; i++) {
-      await Future.delayed(const Duration(milliseconds: 40));
-      if (!mounted) return;
-      setState(() => _downloadProgress = i / 100.0);
-    }
-
-    setState(() => _downloadingMap = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('France map downloaded for offline use! ✅'),
-          backgroundColor: Color(kColorUnlockedHex),
-        ),
-      );
-    }
+    await OfflineTileService.downloadFrance(
+      onProgress: (progress, downloaded, total) {
+        if (!mounted) return;
+        setState(() {
+          _downloadProgress = progress;
+          _downloadStatus = '$downloaded / $total tiles';
+        });
+      },
+      onComplete: () {
+        if (!mounted) return;
+        setState(() {
+          _downloadingMap = false;
+          _isAlreadyDownloaded = true;
+          _downloadStatus = '';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('France map downloaded for offline use ✅'),
+            backgroundColor: Color(kColorUnlockedHex),
+          ),
+        );
+      },
+      onError: (err) {
+        if (!mounted) return;
+        setState(() {
+          _downloadingMap = false;
+          _downloadStatus = '';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $err')),
+        );
+      },
+    );
   }
 
   @override
@@ -288,15 +331,45 @@ class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
                         color: const Color(kColorAccent),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '${(_downloadProgress * 100).round()}% downloaded',
-                        style: Theme.of(context).textTheme.bodySmall,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${(_downloadProgress * 100).round()}%',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          Text(
+                            _downloadStatus,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              await OfflineTileService.cancelDownload();
+                              if (mounted) setState(() => _downloadingMap = false);
+                            },
+                            child: const Text('Cancel',
+                                style: TextStyle(color: Colors.redAccent)),
+                          ),
+                        ],
                       ),
-                    ] else
+                    ] else if (_isAlreadyDownloaded)
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle,
+                              color: Color(kColorUnlockedHex), size: 18),
+                          const SizedBox(width: 8),
+                          Text('France map ready for offline use',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: const Color(kColorUnlockedHex))),
+                        ],
+                      )
+                    else
                       OutlinedButton.icon(
-                        onPressed: _simulateMapDownload,
+                        onPressed: _downloadMap,
                         icon: const Icon(Icons.download),
-                        label: const Text('Download France Map'),
+                        label: const Text('Download France Map (~280 MB)'),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 48),
                         ),

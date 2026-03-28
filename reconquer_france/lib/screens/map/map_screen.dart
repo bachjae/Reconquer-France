@@ -53,6 +53,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
   // Low-zoom conquest dots (shown when zoom < 8 to maintain fog of war)
   List<CircleMarker> _lowZoomDots = [];
 
+  // Friends' cell overlay
+  bool _showFriendCells = false;
+  List<Polygon> _friendPolygons = [];
+
   @override
   void initState() {
     super.initState();
@@ -219,10 +223,43 @@ class _MapScreenState extends ConsumerState<MapScreen>
       }).toList();
     }
 
+    // Friends' cell polygons — shown only when the toggle is on and at
+    // sufficient zoom so individual hexes are distinguishable.
+    final friendPolys = <Polygon>[];
+    if (_showFriendCells) {
+      final friendsData =
+          ref.read(friendsCellsProvider).value ?? const {};
+      // Merge all friends' cells, skip cells the current user already owns.
+      final allFriendHexIds = friendsData.values
+          .expand((s) => s)
+          .where((h) => !unlockedCells.contains(h))
+          .toSet();
+
+      for (final hexId in allFriendHexIds.take(kMaxVisibleHexes ~/ 2)) {
+        // Cheap viewport cull before computing corners.
+        final center = HexGridService.hexIdToCenter(hexId);
+        if (center.latitude < bounds.south - 0.1 ||
+            center.latitude > bounds.north + 0.1 ||
+            center.longitude < bounds.west - 0.1 ||
+            center.longitude > bounds.east + 0.1) continue;
+
+        final corners = HexGridService.hexCorners(hexId)
+            .map((p) => LatLng(p.latitude, p.longitude))
+            .toList();
+        friendPolys.add(Polygon(
+          points: corners,
+          color: const Color(kColorFriendHex),
+          borderColor: Colors.blue.shade300.withValues(alpha: 0.4),
+          borderStrokeWidth: 0.5,
+        ));
+      }
+    }
+
     setState(() {
       _lockedPolygons = locked;
       _unlockedPolygons = unlocked;
       _heatmapCircles = circles;
+      _friendPolygons = friendPolys;
       _lowZoomDots = [];
     });
   }
@@ -258,6 +295,10 @@ class _MapScreenState extends ConsumerState<MapScreen>
   Widget build(BuildContext context) {
     // Re-render polygons when unlocked cells change
     ref.listen(unlockedCellsProvider, (_, __) => _rebuildViewportHexes());
+    // Re-render friend cells when Firestore data updates
+    ref.listen(friendsCellsProvider, (_, __) {
+      if (_showFriendCells && _mapReady) _rebuildViewportHexes();
+    });
     final unlockedCount = ref.watch(unlockedCellsProvider).length;
 
     final testMode = ref.watch(testModeProvider);
@@ -382,6 +423,13 @@ class _MapScreenState extends ConsumerState<MapScreen>
               if (_heatmapEnabled)
                 CircleLayer(circles: _heatmapCircles),
 
+              // Friends' conquered cells (blue overlay, toggled via button)
+              if (_showFriendCells && _friendPolygons.isNotEmpty)
+                PolygonLayer(
+                  polygons: _friendPolygons,
+                  polygonCulling: true,
+                ),
+
               // Live location dot — always on top
               if (_currentPosition != null)
                 CircleLayer(
@@ -461,6 +509,22 @@ class _MapScreenState extends ConsumerState<MapScreen>
                     MaterialPageRoute(
                         builder: (_) => const TripReplayScreen()),
                   ),
+                ),
+                const SizedBox(height: 6),
+                _MapIconButton(
+                  icon: _showFriendCells
+                      ? Icons.people
+                      : Icons.people_outline,
+                  color: _showFriendCells
+                      ? Colors.blue.shade400
+                      : const Color(kColorAccent),
+                  tooltip: _showFriendCells
+                      ? 'Hide Friends'
+                      : 'Show Friends',
+                  onTap: () {
+                    setState(() => _showFriendCells = !_showFriendCells);
+                    _rebuildViewportHexes();
+                  },
                 ),
                 const SizedBox(height: 6),
                 _MapIconButton(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../providers/auth_provider.dart';
+import 'trip_history_screen.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/badge_provider.dart';
 
@@ -397,6 +398,16 @@ class _SettingsSection extends ConsumerWidget {
       children: [
         Text('Settings', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
+        _SettingsTile(
+          icon: Icons.history,
+          title: 'Trip History',
+          subtitle: 'Browse all your past trips and collections',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const TripHistoryScreen()),
+          ),
+        ),
         _SettingsTile(
           icon: Icons.emoji_events_outlined,
           title: 'Region Badges',

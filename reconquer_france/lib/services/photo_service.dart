@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:exif/exif.dart';
@@ -19,6 +20,13 @@ class PhotoService {
 
   // Held so the callback can be removed when auto-import is stopped.
   static ValueChanged<MethodCall>? _changeCallback;
+
+  // Cache reverse-geocode results keyed by "lat1d,lng1d" (1 decimal place).
+  // Nominatim's terms allow 1 req/s; caching by coarse grid avoids hammering
+  // the API when a trip has many photos from the same area.
+  static final Map<String, String?> _geocodeCache = {};
+  // Timestamp of last outbound Nominatim request (rate-limit guard).
+  static DateTime? _lastGeocodeRequest;
 
   // ── Permission ────────────────────────────────────────────────────────────
 
@@ -186,8 +194,13 @@ class PhotoService {
 
     final hexId = HexGridService.latLngToHexId(lat, lng);
 
-    // Generate thumbnail
-    final String? thumbnailBase64 = await _generateThumbnail(file);
+    // Generate thumbnail and reverse-geocode in parallel.
+    final results = await Future.wait([
+      _generateThumbnail(file),
+      _reverseGeocode(lat, lng),
+    ]);
+    final thumbnailBase64 = results[0] as String?;
+    final cityName = results[1] as String?;
 
     return TripPhoto(
       id: _uuid.v4(),
@@ -199,7 +212,62 @@ class PhotoService {
       takenAt: asset.createDateTime,
       tripId: tripId,
       thumbnailBase64: thumbnailBase64,
+      cityName: cityName,
     );
+  }
+
+  // ── Reverse geocoding ──────────────────────────────────────────────────────
+
+  /// Returns the nearest city/town/village name for the given coordinates
+  /// using Nominatim (free, no API key). Caches results and enforces the
+  /// Nominatim policy of max 1 request per second.
+  static Future<String?> _reverseGeocode(double lat, double lng) async {
+    final key =
+        '${lat.toStringAsFixed(1)},${lng.toStringAsFixed(1)}';
+
+    if (_geocodeCache.containsKey(key)) return _geocodeCache[key];
+
+    // Rate-limit: wait until 1 second has elapsed since the last request.
+    final now = DateTime.now();
+    if (_lastGeocodeRequest != null) {
+      final elapsed = now.difference(_lastGeocodeRequest!);
+      if (elapsed < const Duration(seconds: 1)) {
+        await Future.delayed(const Duration(seconds: 1) - elapsed);
+      }
+    }
+    _lastGeocodeRequest = DateTime.now();
+
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse'
+        '?lat=$lat&lon=$lng&format=json&zoom=10&accept-language=en',
+      );
+      final client = HttpClient()
+        ..userAgent = 'ReconquerFrance/1.0 (flutter app)'
+        ..connectionTimeout = const Duration(seconds: 5);
+
+      final request = await client.getUrl(uri);
+      final response =
+          await request.close().timeout(const Duration(seconds: 8));
+
+      String? cityName;
+      if (response.statusCode == 200) {
+        final body = await response.transform(utf8.decoder).join();
+        final json = jsonDecode(body) as Map<String, dynamic>?;
+        final address = json?['address'] as Map<String, dynamic>?;
+        cityName = address?['city'] as String? ??
+            address?['town'] as String? ??
+            address?['village'] as String? ??
+            address?['municipality'] as String?;
+      }
+      client.close();
+
+      _geocodeCache[key] = cityName;
+      return cityName;
+    } catch (_) {
+      _geocodeCache[key] = null;
+      return null;
+    }
   }
 
   static double _parseGpsCoord(dynamic values, String ref) {
