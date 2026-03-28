@@ -10,6 +10,7 @@ import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../services/offline_tile_service.dart';
+import '../../services/photo_service.dart';
 import '../../services/sync_service.dart';
 
 class TripSetupScreen extends ConsumerStatefulWidget {
@@ -100,6 +101,9 @@ class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
 
       // Set in Riverpod
       ref.read(currentTripIdProvider.notifier).state = tripId;
+
+      // Tell PhotoService so future auto-imports go to this trip
+      PhotoService.setActiveTripId(tripId);
 
       // Sync any existing local cells
       await SyncService.syncAllCellsToFirestore(tripId);

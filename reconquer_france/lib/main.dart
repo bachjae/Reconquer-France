@@ -50,7 +50,7 @@ void main() async {
   // Start watching the device photo library for new images. This runs in the
   // background and auto-imports photos to France hexes whenever a new photo
   // is taken, without any user action required.
-  await PhotoService.startAutoImport('local');
+  await PhotoService.startAutoImport();
 
   // Handle FCM background messages
   FirebaseMessaging.onBackgroundMessage(_backgroundMessageHandler);

@@ -141,6 +141,13 @@ class AuthService {
   Future<void> updateFcmToken(String token) async {
     final uid = currentUser?.uid;
     if (uid == null) return;
-    await _firestore.collection('users').doc(uid).update({'fcmToken': token});
+    try {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .set({'fcmToken': token}, SetOptions(merge: true));
+    } catch (_) {
+      // Non-fatal — next refresh will retry
+    }
   }
 }

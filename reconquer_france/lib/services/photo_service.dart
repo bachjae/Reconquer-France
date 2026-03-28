@@ -21,6 +21,17 @@ class PhotoService {
   // Held so the callback can be removed when auto-import is stopped.
   static ValueChanged<MethodCall>? _changeCallback;
 
+  // Active trip ID — updated when the user creates/switches a trip so that
+  // auto-imported photos are associated with the correct trip rather than
+  // always being filed under 'local'.
+  static String _currentTripId = 'local';
+
+  /// Update the trip that newly imported photos belong to.
+  /// Call this after a trip is created or the user switches trips.
+  static void setActiveTripId(String tripId) {
+    _currentTripId = tripId;
+  }
+
   // Cache reverse-geocode results keyed by "lat1d,lng1d" (1 decimal place).
   // Nominatim's terms allow 1 req/s; caching by coarse grid avoids hammering
   // the API when a trip has many photos from the same area.
@@ -60,7 +71,8 @@ class PhotoService {
   /// Register a photo-library change listener so new photos taken on the
   /// device are automatically imported without any user action.
   /// Call once at app startup (main.dart). Safe to call multiple times.
-  static Future<void> startAutoImport(String tripId) async {
+  /// Uses [_currentTripId] dynamically so photos always go to the active trip.
+  static Future<void> startAutoImport() async {
     if (_changeCallback != null) return; // already running
 
     final permission = await PhotoManager.requestPermissionExtend();
@@ -68,7 +80,8 @@ class PhotoService {
 
     _changeCallback = (_) async {
       // Library changed — pull in anything new since last import.
-      await importPhotosFromLibrary(tripId);
+      // Use the current active trip ID, not the startup value.
+      await importPhotosFromLibrary(_currentTripId);
     };
     PhotoManager.addChangeCallback(_changeCallback!);
     PhotoManager.startChangeNotify();
@@ -93,7 +106,8 @@ class PhotoService {
   static Future<List<TripPhoto>> importPhotosFromLibrary(String tripId) async {
     final permission = await PhotoManager.requestPermissionExtend();
     if (!permission.isAuth) {
-      PhotoManager.openSetting();
+      // Do NOT auto-open Settings here — this is called silently on app resume
+      // and on library changes; repeatedly opening Settings would be jarring.
       return [];
     }
 

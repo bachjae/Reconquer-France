@@ -40,6 +40,8 @@ class _ReconquerFranceAppState extends ConsumerState<ReconquerFranceApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       final tripId = ref.read(currentTripIdProvider) ?? 'local';
+      // Keep PhotoService in sync with the active trip
+      PhotoService.setActiveTripId(tripId);
       PhotoService.importPhotosFromLibrary(tripId);
     }
   }

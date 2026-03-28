@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/social_provider.dart';
 import '../../services/hex_grid_service.dart';
 
 /// Shows a canvas-based conquest map merging cells from all group members.
@@ -15,6 +16,17 @@ class CollaborativeMapScreen extends ConsumerWidget {
     final groupCells = ref.watch(groupCellsProvider);
     final profile = ref.watch(refreshableProfileProvider);
     final myUid = profile.value?.uid ?? '';
+    final activeGroup = ref.watch(activeGroupProvider).valueOrNull;
+
+    // Build a uid → display label map from the leaderboard when available
+    final nameMap = <String, String>{};
+    if (activeGroup != null) {
+      final leaderboard = ref.watch(groupLeaderboardProvider(activeGroup.id));
+      for (final entry in leaderboard.value ?? []) {
+        nameMap[entry.uid] = '${entry.avatarEmoji} ${entry.displayName}';
+      }
+    }
+    nameMap[myUid] = 'You';
 
     return Scaffold(
       backgroundColor: const Color(kColorBackground),
@@ -30,9 +42,9 @@ class CollaborativeMapScreen extends ConsumerWidget {
       ),
       body: groupCells.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _buildMap(context, myCells, {}, myUid),
+        error: (_, __) => _buildMap(context, myCells, {}, myUid, nameMap),
         data: (memberCells) =>
-            _buildMap(context, myCells, memberCells, myUid),
+            _buildMap(context, myCells, memberCells, myUid, nameMap),
       ),
     );
   }
@@ -42,6 +54,7 @@ class CollaborativeMapScreen extends ConsumerWidget {
     Set<String> myCells,
     Map<String, Set<String>> memberCells,
     String myUid,
+    Map<String, String> nameMap,
   ) {
     // Build a color map: uid → color index
     final members = [myUid, ...memberCells.keys.where((k) => k != myUid)];
@@ -80,6 +93,7 @@ class CollaborativeMapScreen extends ConsumerWidget {
           colorMap: colorMap,
           myUid: myUid,
           totalCells: totalCells,
+          nameMap: nameMap,
         ),
 
         // Map canvas
@@ -118,6 +132,7 @@ class _StatsHeader extends StatelessWidget {
   final Map<String, int> colorMap;
   final String myUid;
   final int totalCells;
+  final Map<String, String> nameMap;
 
   const _StatsHeader({
     required this.members,
@@ -125,6 +140,7 @@ class _StatsHeader extends StatelessWidget {
     required this.colorMap,
     required this.myUid,
     required this.totalCells,
+    required this.nameMap,
   });
 
   @override
@@ -180,7 +196,7 @@ class _StatsHeader extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        isMe ? 'You' : uid.substring(0, 6),
+                        nameMap[uid] ?? (isMe ? 'You' : uid.substring(0, 6)),
                         style: TextStyle(
                           color: color,
                           fontSize: 12,
