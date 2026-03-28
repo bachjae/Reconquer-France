@@ -169,7 +169,7 @@ class _TripHistoryCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isActive
-                ? const Color(kColorAccent).withOpacity(0.5)
+                ? const Color(kColorAccent).withValues(alpha:0.5)
                 : const Color(0xFF2A2A4E),
           ),
         ),
@@ -194,10 +194,10 @@ class _TripHistoryCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(kColorAccent).withOpacity(0.15),
+                      color: const Color(kColorAccent).withValues(alpha:0.15),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: const Color(kColorAccent).withOpacity(0.4)),
+                          color: const Color(kColorAccent).withValues(alpha:0.4)),
                     ),
                     child: const Text(
                       'Active',

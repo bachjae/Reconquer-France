@@ -179,13 +179,15 @@ class NotificationService {
     required double lng,
     required String message,
   }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
     await FirebaseFirestore.instance
         .collection('groups')
         .doc(groupId)
         .collection('alerts')
         .add({
       'type': 'corn',
-      'sentBy': FirebaseAuth.instance.currentUser!.uid,
+      'sentBy': uid,
       'senderName': senderName,
       'lat': lat,
       'lng': lng,
@@ -203,18 +205,20 @@ class NotificationService {
     required double lat,
     required double lng,
   }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
     await FirebaseFirestore.instance
         .collection('groups')
         .doc(groupId)
         .collection('alerts')
         .add({
       'type': 'husker',
-      'sentBy': FirebaseAuth.instance.currentUser!.uid,
+      'sentBy': uid,
       'senderName': senderName,
       'lat': lat,
       'lng': lng,
       'message': 'URGENT — needs immediate help',
-      'recipientType': 'leaders_only',
+      'recipientType': 'all_members',
       'timestamp': FieldValue.serverTimestamp(),
       'resolvedAt': null,
     });

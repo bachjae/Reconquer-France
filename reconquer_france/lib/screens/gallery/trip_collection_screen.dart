@@ -747,7 +747,7 @@ class _TripCard extends StatelessWidget {
           color: const Color(kColorBackground),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: const Color(kColorAccent).withOpacity(0.15), width: 1),
+              color: const Color(kColorAccent).withValues(alpha: 0.15), width: 1),
         ),
         child: Row(
           children: [
