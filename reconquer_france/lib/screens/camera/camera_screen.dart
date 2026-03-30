@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/photo_provider.dart';
+import '../../providers/test_mode_provider.dart';
 import '../../services/photo_service.dart';
 import '../../services/location_service.dart';
 import '../../services/hex_grid_service.dart';
@@ -127,7 +128,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
       return;
     }
 
-    if (!HexGridService.isInFrance(pos.latitude, pos.longitude)) {
+    final testMode = ref.read(testModeProvider);
+    if (!HexGridService.isInActiveArea(pos.latitude, pos.longitude, testMode: testMode)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('You are not in France. Photo not saved.')),
