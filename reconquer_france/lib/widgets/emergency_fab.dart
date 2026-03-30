@@ -87,7 +87,7 @@ class _EmergencyFABState extends ConsumerState<EmergencyFAB> {
           style: TextStyle(color: Color(kColorHusker)),
         ),
         content: const Text(
-          'This will send an URGENT emergency alert to all group leaders. '
+          'This will send an URGENT emergency alert to ALL group members. '
           'This bypasses silent mode.\n\n'
           'Only use in a real emergency!',
           style: TextStyle(color: Colors.white70),
