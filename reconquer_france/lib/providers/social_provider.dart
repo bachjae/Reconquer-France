@@ -145,7 +145,7 @@ final myGroupAlertsProvider = StreamProvider<List<GroupAlert>>((ref) {
     }
     if (isLeader) return all;
     // Students only see alerts not targeted exclusively at leaders
-    return all.where((a) => a.recipientType == 'all').toList();
+    return all.where((a) => a.recipientType != 'leaders_only').toList();
   });
 });
 
@@ -260,7 +260,9 @@ class SocialActions {
       'roles.$uid': 'student', // Joiners start as students
     });
 
-    return TripGroup.fromFirestore(groupDoc);
+    final updatedDoc =
+        await _firestore.collection('groups').doc(groupDoc.id).get();
+    return TripGroup.fromFirestore(updatedDoc);
   }
 
   /// Assign a role to a group member. Only the group creator can do this.

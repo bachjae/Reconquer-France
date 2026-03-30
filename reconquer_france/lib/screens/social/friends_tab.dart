@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants.dart';
+import '../../providers/map_provider.dart';
 import '../../providers/social_provider.dart';
 
 import '../../models/trip_group.dart';
@@ -179,7 +180,8 @@ class _GroupSectionState extends ConsumerState<_GroupSection> {
   Future<void> _createGroup() async {
     if (_groupNameCtrl.text.isEmpty) return;
     try {
-      await SocialActions.createGroup(_groupNameCtrl.text.trim(), 'default');
+      final tripId = ref.read(currentTripIdProvider) ?? '';
+      await SocialActions.createGroup(_groupNameCtrl.text.trim(), tripId);
       _groupNameCtrl.clear();
       setState(() => _showCreate = false);
       if (mounted) {
