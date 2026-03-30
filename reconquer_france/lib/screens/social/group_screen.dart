@@ -267,7 +267,7 @@ class _RoleManagementSection extends ConsumerWidget {
             style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 4),
         Text(
-          'Assign leaders who will receive corn & husker alerts.',
+          'Leaders receive Corn alerts. All members receive Husker emergencies.',
           style: Theme.of(context)
               .textTheme
               .bodySmall

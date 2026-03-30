@@ -119,7 +119,8 @@ final pendingFriendRequestsProvider =
 });
 
 /// All unresolved alerts for the current user's group.
-/// Leaders see every alert; students only see alerts with recipientType == 'all'.
+/// Leaders see every alert; students only see alerts not targeted exclusively at leaders
+/// (i.e., recipientType != 'leaders_only', so they receive 'all_members' Husker alerts).
 final myGroupAlertsProvider = StreamProvider<List<GroupAlert>>((ref) {
   final user = ref.watch(authStateProvider).value;
   final group = ref.watch(activeGroupProvider).value;
@@ -232,7 +233,7 @@ class SocialActions {
       'name': name,
       'createdBy': uid,
       'memberIds': [uid],
-      'roles': {uid: 'student'}, // Creator starts as student — can assign themselves as leader
+      'roles': {uid: 'leader'}, // Creator starts as leader so Corn alerts have a recipient
       'tripId': tripId,
       'inviteCode': inviteCode,
       'createdAt': FieldValue.serverTimestamp(),
