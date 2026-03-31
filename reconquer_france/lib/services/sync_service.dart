@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -99,9 +100,11 @@ class SyncService {
       final Map<String, List<String>> byTrip = {};
       for (final entry in entries) {
         if (entry['type'] == 'unlock_cell') {
-          final tripId = entry['tripId'] as String;
+          final tripId = entry['tripId'];
+          final hexId = entry['hexId'];
+          if (tripId is! String || hexId is! String) continue;
           byTrip.putIfAbsent(tripId, () => []);
-          byTrip[tripId]!.add(entry['hexId'] as String);
+          byTrip[tripId]!.add(hexId);
         }
       }
 
@@ -118,7 +121,7 @@ class SyncService {
         // Check current cell count to handle chunking
         final tripDoc = await ref.get();
         final currentCount =
-            tripDoc.data()?['totalCellsUnlocked'] as int? ?? 0;
+            (tripDoc.data()?['totalCellsUnlocked'] as num?)?.toInt() ?? 0;
 
         if (currentCount >= kMaxUnlockedCellsPerDoc) {
           // Use subcollection chunks for the cell list
@@ -151,6 +154,7 @@ class SyncService {
       await _syncQueue.clear();
     } catch (e) {
       // Keep in queue for retry
+      debugPrint('[SyncService] _flushQueue error: $e');
     }
   }
 
