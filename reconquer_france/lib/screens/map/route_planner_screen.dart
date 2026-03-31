@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants.dart';
 import '../../providers/map_provider.dart';
+import '../../providers/test_mode_provider.dart';
 import '../../services/hex_grid_service.dart' hide LatLng;
 import '../../services/offline_tile_service.dart';
 
@@ -22,7 +23,8 @@ class _RoutePlannerScreenState extends ConsumerState<RoutePlannerScreen> {
   Set<String> _routeCells = {};
 
   void _onMapTap(TapPosition _, LatLng point) {
-    if (!HexGridService.isInFrance(point.latitude, point.longitude)) return;
+    final testMode = ref.read(testModeProvider);
+    if (!HexGridService.isInActiveArea(point.latitude, point.longitude, testMode: testMode)) return;
     setState(() {
       _waypoints.add(point);
       _recomputeRoute();
@@ -43,6 +45,7 @@ class _RoutePlannerScreenState extends ConsumerState<RoutePlannerScreen> {
 
   /// Interpolate hex cells every ~400 m along a single segment.
   Set<String> _segmentCells(LatLng from, LatLng to) {
+    final testMode = ref.read(testModeProvider);
     final hexIds = <String>{};
     final latDiff = to.latitude - from.latitude;
     final lngDiff = to.longitude - from.longitude;
@@ -55,7 +58,7 @@ class _RoutePlannerScreenState extends ConsumerState<RoutePlannerScreen> {
       final t = s / steps;
       final lat = from.latitude + latDiff * t;
       final lng = from.longitude + lngDiff * t;
-      if (HexGridService.isInFrance(lat, lng)) {
+      if (HexGridService.isInActiveArea(lat, lng, testMode: testMode)) {
         hexIds.add(HexGridService.latLngToHexId(lat, lng));
       }
     }
