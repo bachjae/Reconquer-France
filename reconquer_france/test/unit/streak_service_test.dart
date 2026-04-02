@@ -16,10 +16,12 @@ void main() {
   });
 
   setUp(() async {
-    // Delete any leftover box and open fresh
+    // Close first (in case tearDown didn't run cleanly), then wipe disk,
+    // then open a fresh empty box via StreakService.init().
     if (Hive.isBoxOpen('streak_data')) {
-      await Hive.box('streak_data').deleteFromDisk();
+      await Hive.box('streak_data').close();
     }
+    await Hive.deleteBoxFromDisk('streak_data');
     await StreakService.init();
   });
 
