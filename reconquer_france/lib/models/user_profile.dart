@@ -139,7 +139,7 @@ class Trip {
       endDate: (data['endDate'] as Timestamp?)?.toDate(),
       unlockedCells:
           List<String>.from(data['unlockedCells'] as List? ?? []),
-      totalCellsUnlocked: data['totalCellsUnlocked'] as int? ?? 0,
+      totalCellsUnlocked: (data['totalCellsUnlocked'] as num?)?.toInt() ?? 0,
       percentFrance: (data['percentFrance'] as num?)?.toDouble() ?? 0.0,
     );
   }

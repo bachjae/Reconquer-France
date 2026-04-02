@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:exif/exif.dart';
 import 'package:image/image.dart' as img;
@@ -213,8 +214,8 @@ class PhotoService {
       _generateThumbnail(file),
       _reverseGeocode(lat, lng),
     ]);
-    final thumbnailBase64 = results[0] as String?;
-    final cityName = results[1] as String?;
+    final thumbnailBase64 = results[0];
+    final cityName = results[1];
 
     return TripPhoto(
       id: _uuid.v4(),

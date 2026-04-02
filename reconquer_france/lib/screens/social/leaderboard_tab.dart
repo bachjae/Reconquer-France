@@ -147,11 +147,13 @@ class _LeaderboardEntry extends ConsumerWidget {
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: isFirst ? const Color(kColorAccent) : Colors.white70,
                   ),
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
             Text(
               '${entry.percentFrance.toStringAsFixed(2)}% 🇫🇷',
               style: Theme.of(context).textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis,
             ),
             // Mini progress bar
             const SizedBox(height: 4),

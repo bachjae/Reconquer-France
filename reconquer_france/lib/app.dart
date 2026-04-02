@@ -47,7 +47,7 @@ class _ReconquerFranceAppState extends ConsumerState<ReconquerFranceApp>
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(

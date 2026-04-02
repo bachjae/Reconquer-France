@@ -151,10 +151,11 @@ class _StatsHeader extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Group Members',
-                  style: Theme.of(context).textTheme.titleSmall),
+              Expanded(
+                child: Text('Group Members',
+                    style: Theme.of(context).textTheme.titleSmall),
+              ),
               Text(
                 '$totalCells total cells',
                 style: Theme.of(context)

@@ -56,7 +56,9 @@ class _TripCollectionScreenState extends ConsumerState<TripCollectionScreen> {
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[TripCollectionScreen] _loadTripMeta error: $e');
+    }
     if (mounted) setState(() => _loadingMeta = false);
   }
 
@@ -687,7 +689,7 @@ class _TripCollectionsSheetState extends State<TripCollectionsSheet> {
                         ? ''
                         : same
                             ? DateFormat('d MMM yyyy').format(first)
-                            : '${DateFormat('d MMM').format(first)} – ${DateFormat('d MMM yyyy').format(last!)}';
+                            : '${DateFormat('d MMM').format(first)} – ${DateFormat('d MMM yyyy').format(last)}';
 
                     final cover = photos
                         .where((p) => p['localPath'] != null)

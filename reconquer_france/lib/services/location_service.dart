@@ -104,8 +104,8 @@ class LocationService {
         // Never let iOS pause updates automatically; we rely on the
         // distance filter for power savings instead.
         pauseLocationUpdatesAutomatically: false,
-        // Show the blue indicator bar so users know tracking is active.
-        showsBackgroundLocationIndicator: true,
+        // Keep background location updates alive while the app is backgrounded.
+        allowBackgroundLocationUpdates: true,
       );
     } else {
       settings = const LocationSettings(

@@ -245,11 +245,14 @@ class _GroupSectionState extends ConsumerState<_GroupSection> {
                         children: [
                           const Text('👥', style: TextStyle(fontSize: 20)),
                           const SizedBox(width: 8),
-                          Text(
-                            group.name,
-                            style: Theme.of(context).textTheme.titleMedium,
+                          Expanded(
+                            child: Text(
+                              group.name,
+                              style: Theme.of(context).textTheme.titleMedium,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 8),
                           Text(
                             '${group.memberIds.length} members',
                             style: Theme.of(context).textTheme.bodySmall,

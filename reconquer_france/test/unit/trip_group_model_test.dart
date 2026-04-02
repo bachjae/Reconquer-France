@@ -1,21 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reconquer_france/models/trip_group.dart';
 
-// ── Minimal stubs to avoid pulling in real Firestore ──────────────────────────
-
-class _FakeDocSnap {
-  final String id;
-  final Map<String, dynamic>? _data;
-
-  _FakeDocSnap({required this.id, Map<String, dynamic>? data}) : _data = data;
-
-  bool get exists => _data != null;
-
-  dynamic data() => _data;
-}
-
 // ── Helpers to call fromFirestore without a real DocumentSnapshot ─────────────
-// We extend the model constructors directly, bypassing Firestore entirely.
+// We construct models directly, bypassing Firestore entirely.
 
 TripGroup _makeTripGroup({
   String id = 'group1',

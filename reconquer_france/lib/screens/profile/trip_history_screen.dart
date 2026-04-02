@@ -98,7 +98,7 @@ class TripHistoryScreen extends ConsumerWidget {
                     final startDate = startTs?.toDate();
                     final endDate = endTs?.toDate();
                     final cells =
-                        data['totalCellsUnlocked'] as int? ??
+                        (data['totalCellsUnlocked'] as num?)?.toInt() ??
                         // Fall back to local count for the active trip
                         (i == 0 ? localCellCount : 0);
                     final percent =

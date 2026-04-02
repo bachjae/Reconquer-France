@@ -503,7 +503,7 @@ class _SettingsSection extends ConsumerWidget {
           ),
           trailing: Switch(
             value: testMode,
-            activeThumbColor: Colors.orange,
+            activeColor: Colors.orange,
             onChanged: (_) => ref.read(testModeProvider.notifier).toggle(),
           ),
           onTap: () => ref.read(testModeProvider.notifier).toggle(),
